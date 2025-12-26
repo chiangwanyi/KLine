@@ -213,8 +213,9 @@ def chart(
         )
 
     fig.update_layout(
+        dragmode="pan",
         xaxis_rangeslider_visible=False,
-        yaxis_side="left",
+        yaxis_side="right",
         yaxis_tickformat=".0f",
         hovermode="x unified",
         plot_bgcolor=theme["plot_bgcolor"],
@@ -257,7 +258,13 @@ def chart(
         )
     )
 
-    return fig.to_html(include_plotlyjs="cdn")
+    return fig.to_html(
+        include_plotlyjs="cdn",
+        config={
+            "scrollZoom": True,
+            "displaylogo": False
+        }
+    )
 
 
 if __name__ == "__main__":
