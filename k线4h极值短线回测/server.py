@@ -199,7 +199,7 @@ def chart(
         fig.add_hline(
             y=hi,
             line=dict(color=line_color, dash="dash"),
-            annotation_text="时段最高价",
+            annotation_text="时段最高价：" + str(hi),
             annotation_font=dict(color=theme["font_color"])
         )
 
@@ -208,7 +208,7 @@ def chart(
         fig.add_hline(
             y=lo,
             line=dict(color=line_color, dash="dash"),
-            annotation_text="时段最低价",
+            annotation_text="时段最低价：" + str(lo),
             annotation_font=dict(color=theme["font_color"])
         )
 
@@ -216,7 +216,7 @@ def chart(
         dragmode="pan",
         xaxis_rangeslider_visible=False,
         yaxis_side="right",
-        yaxis_tickformat=".0f",
+        yaxis_tickformat=".1f",
         hovermode="x unified",
         plot_bgcolor=theme["plot_bgcolor"],
         paper_bgcolor=theme["paper_bgcolor"],
