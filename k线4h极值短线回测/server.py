@@ -12,6 +12,10 @@ import pytz
 from datetime import datetime
 # 导入plotly绘图库，用于生成蜡烛图
 import plotly.graph_objs as go
+# 导入JSON解析模块
+import json
+# 导入类型提示
+from typing import Optional, List, Dict
 
 # 初始化FastAPI应用实例
 app = FastAPI()
@@ -23,11 +27,30 @@ SYMBOL = "BTCUSDT"
 
 # 时区映射字典：键为简洁标识，值为pytz对应的时区对象
 TZ_MAP = {
-    "UTC": pytz.utc,                  # 世界协调时间
+    "UTC": pytz.utc,  # 世界协调时间
     "NY": pytz.timezone("America/New_York"),  # 纽约时区
-    "TOKYO": pytz.timezone("Asia/Tokyo"),     # 东京时区
-    "SHANGHAI": pytz.timezone("Asia/Shanghai") # 上海时区
+    "TOKYO": pytz.timezone("Asia/Tokyo"),  # 东京时区
+    "SHANGHAI": pytz.timezone("Asia/Shanghai")  # 上海时区
 }
+
+# 主题配置
+THEME_CONFIG = {
+    "dark": {
+        "plot_bgcolor": "#0b0e11",
+        "paper_bgcolor": "#0b0e11",
+        "font_color": "white",
+        "increasing_color": "#26a69a",  # 上涨K线颜色（青绿色）
+        "decreasing_color": "#ef5350"  # 下跌K线颜色（红色）
+    },
+    "light": {
+        "plot_bgcolor": "#f8fafc",
+        "paper_bgcolor": "#f8fafc",
+        "font_color": "#1e293b",
+        "increasing_color": "#065f46",  # 上涨K线颜色（深绿色）
+        "decreasing_color": "#991b1b"  # 下跌K线颜色（深红色）
+    }
+}
+
 
 # 根路径路由：返回前端静态页面（GET请求）
 @app.get("/", response_class=FileResponse)
@@ -35,23 +58,52 @@ def index():
     # 返回frontend目录下的index.html文件
     return FileResponse("frontend/index.html")
 
+
 # 图表生成路由：接收查询参数，返回包含蜡烛图的HTML（GET请求）
 @app.get("/chart", response_class=HTMLResponse)
 def chart(
-    # K线周期，默认1小时（可选值如1m, 15m, 4h, 1d等，符合币安API规范）
-    interval: str = Query("1h"),
-    # 开始时间，必填参数，格式示例：2025-12-25 00:00:00
-    start: str = Query(...),
-    # 结束时间，必填参数，格式同start
-    end: str = Query(...),
-    # 时区，默认纽约时区，可选值为TZ_MAP的键
-    timezone: str = Query("NY"),
-    # EMA长度，默认20，最小值1，最大值200
-    ema_length: int = Query(20, ge=1, le=200)
+        # K线周期，默认1小时（可选值如1m, 15m, 4h, 1d等，符合币安API规范）
+        interval: str = Query("1h"),
+        # 开始时间，必填参数，格式示例：2025-12-25 00:00:00
+        start: str = Query(...),
+        # 结束时间，必填参数，格式同start
+        end: str = Query(...),
+        # 时区，默认纽约时区，可选值为TZ_MAP的键
+        timezone: str = Query("NY"),
+        # EMA配置JSON字符串，前端传递的多条EMA配置
+        emaConfig: Optional[str] = Query(None),
+        # 是否为深色模式
+        isDarkMode: bool = Query(True)
 ):
     # 根据传入的时区标识获取对应的pytz时区对象
     tz = TZ_MAP[timezone]
-    print(f'请求时间：{start} - {end}，时区：{timezone}，EMA长度：{ema_length}')
+
+    # 解析EMA配置
+    ema_lines = []
+    if emaConfig:
+        try:
+            ema_lines = json.loads(emaConfig)
+            # 验证EMA配置格式
+            for ema in ema_lines:
+                # 确保必要字段存在且类型正确
+                ema['length'] = int(ema.get('length', 20))
+                ema['color'] = ema.get('color', '#0000ff')
+                ema['opacity'] = float(ema.get('opacity', 1.0))
+                # 限制范围
+                ema['length'] = max(1, min(200, ema['length']))
+                ema['opacity'] = max(0.1, min(1.0, ema['opacity']))
+        except Exception as e:
+            print(f"解析EMA配置失败: {e}")
+            # 使用默认EMA配置
+            ema_lines = [{"length": 20, "color": "#0000ff", "opacity": 1.0}]
+    else:
+        # 默认EMA配置
+        ema_lines = [{"length": 20, "color": "#0000ff", "opacity": 1.0}]
+
+    # 打印请求信息
+    ema_lengths = [ema['length'] for ema in ema_lines]
+    print(f'请求时间：{start} - {end}，时区：{timezone}，EMA长度：{ema_lengths}，深色模式：{isDarkMode}')
+
     # 1. 时间处理：将用户传入的本地时间字符串转为指定时区的datetime对象
     # 解析时间字符串为datetime（无时区），再绑定指定时区
     start_dt = tz.localize(datetime.strptime(start, "%Y-%m-%d %H:%M:%S"))
@@ -64,11 +116,11 @@ def chart(
 
     # 3. 调用币安期货API获取K线数据
     resp = requests.get(BINANCE_API, params={
-        "symbol": SYMBOL,       # 交易对
-        "interval": interval,   # K线周期
+        "symbol": SYMBOL,  # 交易对
+        "interval": interval,  # K线周期
         "startTime": start_ts,  # 开始时间戳（毫秒）
-        "endTime": end_ts,      # 结束时间戳（毫秒）
-        "limit": 1000           # 单次请求最大数据量（币安限制1500）
+        "endTime": end_ts,  # 结束时间戳（毫秒）
+        "limit": 1000  # 单次请求最大数据量（币安限制1500）
     })
     # 检查请求是否成功，失败则抛出异常
     resp.raise_for_status()
@@ -80,91 +132,140 @@ def chart(
     # tb: 主动买入成交量, tq: 主动买入成交额, i: 忽略字段
     json_data = resp.json()
     df = pd.DataFrame(json_data, columns=[
-        "open_time","open","high","low","close","volume",
-        "close_time","qav","n","tb","tq","i"
+        "open_time", "open", "high", "low", "close", "volume",
+        "close_time", "qav", "n", "tb", "tq", "i"
     ])
 
     # 5. 时间格式转换：将开盘时间戳转为指定时区的datetime
     # 先转为UTC时区的datetime，再转换为用户指定的时区
     df["time"] = pd.to_datetime(df["open_time"], unit="ms", utc=True).dt.tz_convert(tz)
     # 6. 价格字段类型转换：将字符串转为浮点数（便于绘图计算）
-    for c in ["open","high","low","close"]:
+    for c in ["open", "high", "low", "close"]:
         df[c] = df[c].astype(float)
 
     # 7. 计算指定时段（00:00-04:00）的最高/最低价
     # 筛选出小时数在0到4之间的数据行
     session = df[(df["time"].dt.hour >= 0) & (df["time"].dt.hour < 4)]
-    hi = session["high"].max()  # 该时段最高价
-    lo = session["low"].min()   # 该时段最低价
+    hi = session["high"].max() if not session.empty else None  # 该时段最高价
+    lo = session["low"].min() if not session.empty else None  # 该时段最低价
 
-    # 8. 计算EMA（指数移动平均线）
-    # 使用pandas的ewm()函数计算指数加权移动平均
-    # span参数设置为ema_length，adjust=False使用标准的EMA计算公式
-    df[f'ema_{ema_length}'] = df['close'].ewm(span=ema_length, adjust=False).mean()
+    # 8. 计算多条EMA（指数移动平均线）
+    for ema in ema_lines:
+        length = ema['length']
+        df[f'ema_{length}'] = df['close'].ewm(span=length, adjust=False).mean()
 
-    # 9. 生成Plotly蜡烛图
+    # 9. 获取主题配置
+    theme = THEME_CONFIG["dark"] if isDarkMode else THEME_CONFIG["light"]
+
+    # 10. 生成Plotly蜡烛图
     fig = go.Figure(go.Candlestick(
-        x=df["time"],           # X轴：时间
-        open=df["open"],        # 开盘价
-        high=df["high"],        # 最高价
-        low=df["low"],          # 最低价
-        close=df["close"],      # 收盘价
-        increasing_line_color="#26a69a",  # 上涨K线颜色（青绿色）
-        decreasing_line_color="#ef5350"   # 下跌K线颜色（红色）
+        x=df["time"],  # X轴：时间
+        open=df["open"],  # 开盘价
+        high=df["high"],  # 最高价
+        low=df["low"],  # 最低价
+        close=df["close"],  # 收盘价
+        increasing_line_color=theme["increasing_color"],
+        decreasing_line_color=theme["decreasing_color"]
     ))
 
-    # 10. 添加EMA指标线
-    fig.add_trace(go.Scatter(
-        x=df["time"],
-        y=df[f'ema_{ema_length}'],
-        mode='lines',
-        name=f'EMA ({ema_length})',
-        line=dict(color='blue', width=1.5),
-        hovertemplate=f'EMA ({ema_length}): %{{y:.2f}}<extra></extra>'
-    ))
+    # 11. 添加多条EMA指标线
+    for idx, ema in enumerate(ema_lines):
+        length = ema['length']
+        color = ema['color']
+        opacity = ema['opacity']
 
-    # 11. 添加时段高低价标记线
-    # 添加红色虚线标记时段最高价，标注"时段最高价"
-    fig.add_hline(y=hi, line=dict(color="red", dash="dash"), annotation_text="时段最高价")
-    # 添加绿色虚线标记时段最低价，标注"时段最低价"
-    fig.add_hline(y=lo, line=dict(color="green", dash="dash"), annotation_text="时段最低价")
+        fig.add_trace(go.Scatter(
+            x=df["time"],
+            y=df[f'ema_{length}'],
+            mode='lines',
+            name=f'EMA ({length})',
+            line=dict(color=color, width=1.5),
+            opacity=opacity,
+            hovertemplate=f'EMA ({length}): %{{y:.2f}}<extra></extra>'
+        ))
 
-    # 12. 图表样式配置
+    # 12. 添加时段高低价标记线（如果有数据）
+    if hi is not None:
+        # 添加最高价标记线，适配主题颜色
+        line_color = "#ef4444" if isDarkMode else "#991b1b"
+        fig.add_hline(
+            y=hi,
+            line=dict(color=line_color, dash="dash"),
+            annotation_text="时段最高价",
+            annotation_font=dict(color=theme["font_color"])
+        )
+
+    if lo is not None:
+        # 添加最低价标记线，适配主题颜色
+        line_color = "#22c55e" if isDarkMode else "#065f46"
+        fig.add_hline(
+            y=lo,
+            line=dict(color=line_color, dash="dash"),
+            annotation_text="时段最低价",
+            annotation_font=dict(color=theme["font_color"])
+        )
+
+    # 13. 图表样式配置
     fig.update_layout(
         xaxis_rangeslider_visible=False,  # 隐藏X轴下方的范围滑块
-        yaxis_side="left",               # Y轴显示在右侧
-        yaxis_tickformat=".0f",           # Y轴价格格式（无小数）
-        hovermode="x unified",            # 悬停时统一显示X轴对应所有数据
-        plot_bgcolor="#0b0e11",           # 绘图区域背景色（深灰）
-        paper_bgcolor="#0b0e11",          # 整个图表背景色（深灰）
-        font=dict(color="white"),         # 字体颜色（白色）
-        height=700,                       # 图表高度
-        # 新增中文标题和轴标签（可选优化）
+        yaxis_side="left",  # Y轴显示在左侧
+        yaxis_tickformat=".0f",  # Y轴价格格式（无小数）
+        hovermode="x unified",  # 悬停时统一显示X轴对应所有数据
+        plot_bgcolor=theme["plot_bgcolor"],
+        paper_bgcolor=theme["paper_bgcolor"],
+        font=dict(color=theme["font_color"]),
+        height=700,  # 图表高度
+        # 标题配置
         title={
-            'text': f'{SYMBOL} K线图 ({interval}) - EMA({ema_length})',
+            'text': f'{SYMBOL} K线图 ({interval})',
             'x': 0.5,
-            'xanchor': 'center'
+            'xanchor': 'center',
+            'font': dict(size=16)
         },
         xaxis_title="时间",
         yaxis_title="价格 (USDT)",
+        # 图例配置
         legend=dict(
             orientation="h",
             yanchor="bottom",
             y=1.02,
             xanchor="right",
-            x=1
+            x=1,
+            font=dict(size=12)
+        ),
+        # 坐标轴样式
+        xaxis=dict(
+            gridcolor='rgba(255,255,255,0.1)' if isDarkMode else 'rgba(0,0,0,0.1)',
+            linecolor=theme["font_color"],
+            tickcolor=theme["font_color"]
+        ),
+        yaxis=dict(
+            gridcolor='rgba(255,255,255,0.1)' if isDarkMode else 'rgba(0,0,0,0.1)',
+            linecolor=theme["font_color"],
+            tickcolor=theme["font_color"]
         )
     )
 
-    # 13. 将图表转为HTML字符串返回（使用CDN加载PlotlyJS，减小体积）
+    # 14. 调整悬停提示样式
+    fig.update_traces(
+        hoverlabel=dict(
+            bgcolor=theme["plot_bgcolor"],
+            font_color=theme["font_color"],
+            bordercolor=theme["font_color"]
+        )
+    )
+
+    # 15. 将图表转为HTML字符串返回（使用CDN加载PlotlyJS，减小体积）
     return fig.to_html(include_plotlyjs="cdn")
+
 
 # 程序入口：启动FastAPI服务
 if __name__ == "__main__":
     import uvicorn  # 导入ASGI服务器
+
     uvicorn.run(
-        "server:app",    # 指定要运行的应用（模块名:实例名）
-        host="127.0.0.1",# 绑定本地地址
-        port=8001,       # 监听端口8001
-        reload=True      # 开发模式：代码修改自动重启
+        "server:app",  # 指定要运行的应用（模块名:实例名）
+        host="127.0.0.1",  # 绑定本地地址
+        port=8001,  # 监听端口8001
+        reload=True  # 开发模式：代码修改自动重启
     )
