@@ -62,8 +62,8 @@
         <select v-model="interval"
                 class="w-full bg-secondary border border-gray-600 rounded-lg px-3 py-2 text-white input-focus transition-colors">
           <option>5m</option>
-          <option>15m</option>
           <option>1h</option>
+          <option>4h</option>
         </select>
       </div>
 
@@ -150,7 +150,7 @@ createApp({
         start: this.start,
         end: this.end
       })
-      this.iframeUrl = "http://127.0.0.1:8000/chart?" + q.toString()
+      this.iframeUrl = "http://127.0.0.1:8001/chart?" + q.toString()
     }
   },
   mounted() {
