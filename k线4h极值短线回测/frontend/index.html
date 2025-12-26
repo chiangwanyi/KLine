@@ -4,44 +4,117 @@
   <meta charset="utf-8" />
   <title>TradingView Style Chart</title>
   <script src="https://unpkg.com/vue@3"></script>
+  <!-- 引入Tailwind CSS美化UI -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- 引入Font Awesome图标 -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- 自定义Tailwind配置 -->
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#1E293B',
+            secondary: '#334155',
+            accent: '#0EA5E9',
+            dark: '#0b0e11',
+          },
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+          },
+        },
+      }
+    }
+  </script>
+
+  <style type="text/tailwindcss">
+    @layer utilities {
+      .content-auto {
+        content-visibility: auto;
+      }
+      .panel-shadow {
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+      }
+      .input-focus {
+        @apply focus:ring-2 focus:ring-accent focus:outline-none;
+      }
+    }
+  </style>
 </head>
-<body style="margin:0;background:#0b0e11;color:white">
+<body class="bg-dark text-white m-0 font-sans">
 
-<div id="app" style="display:flex;height:100vh">
-  <!-- 控制面板 -->
-  <div style="width:300px;padding:10px;background:#111">
-    <h3>参数设置</h3>
+<div id="app" class="flex h-screen">
+  <!-- 控制面板 - 优化UI -->
+  <div class="w-80 bg-primary p-6 panel-shadow flex flex-col">
+    <div class="mb-6">
+      <h3 class="text-xl font-semibold text-white mb-1 flex items-center">
+        <i class="fa-solid fa-sliders mr-2 text-accent"></i>参数设置
+      </h3>
+      <div class="w-16 h-1 bg-accent rounded-full"></div>
+    </div>
 
-    <label>周期</label>
-    <select v-model="interval">
-      <option>5m</option>
-      <option>15m</option>
-      <option>1h</option>
-    </select>
+    <!-- 表单分组 -->
+    <div class="space-y-5 flex-grow">
+      <!-- 周期选择 -->
+      <div class="space-y-2">
+        <label class="block text-sm font-medium text-gray-300">周期</label>
+        <select v-model="interval"
+                class="w-full bg-secondary border border-gray-600 rounded-lg px-3 py-2 text-white input-focus transition-colors">
+          <option>5m</option>
+          <option>15m</option>
+          <option>1h</option>
+        </select>
+      </div>
 
-    <br/><br/>
-    <label>时区</label>
-    <select v-model="timezone">
-      <option value="NY">New York</option>
-      <option value="UTC">UTC</option>
-      <option value="TOKYO">Tokyo</option>
-      <option value="SHANGHAI">Shanghai</option>
-    </select>
+      <!-- 时区选择 -->
+      <div class="space-y-2">
+        <label class="block text-sm font-medium text-gray-300">时区</label>
+        <select v-model="timezone"
+                class="w-full bg-secondary border border-gray-600 rounded-lg px-3 py-2 text-white input-focus transition-colors">
+          <option value="NY">New York</option>
+          <option value="UTC">UTC</option>
+          <option value="TOKYO">Tokyo</option>
+          <option value="SHANGHAI">Shanghai</option>
+        </select>
+      </div>
 
-    <br/><br/>
-    <label>开始时间</label>
-    <input v-model="start" style="width:100%" />
+      <!-- 日期选择控件（核心新增功能） -->
+      <div class="space-y-2">
+        <label class="block text-sm font-medium text-gray-300">选择日期</label>
+        <input type="date"
+               v-model="selectedDate"
+               class="w-full bg-secondary border border-gray-600 rounded-lg px-3 py-2 text-white input-focus transition-colors"
+               @change="updateTimeRange">
+      </div>
 
-    <br/><br/>
-    <label>结束时间</label>
-    <input v-model="end" style="width:100%" />
+      <!-- 时间范围展示（只读） -->
+      <div class="space-y-2 mt-4">
+        <label class="block text-sm font-medium text-gray-300">时间范围</label>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="text-xs text-gray-400">开始时间</label>
+            <input v-model="start" readonly
+                   class="w-full bg-secondary/80 border border-gray-600 rounded-lg px-3 py-2 text-white cursor-not-allowed">
+          </div>
+          <div>
+            <label class="text-xs text-gray-400">结束时间</label>
+            <input v-model="end" readonly
+                   class="w-full bg-secondary/80 border border-gray-600 rounded-lg px-3 py-2 text-white cursor-not-allowed">
+          </div>
+        </div>
+      </div>
+    </div>
 
-    <br/><br/>
-    <button @click="reload">加载</button>
+    <!-- 加载按钮 -->
+    <button @click="reload"
+            class="mt-6 w-full bg-accent hover:bg-accent/90 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center justify-center">
+      <i class="fa-solid fa-refresh mr-2"></i>加载数据
+    </button>
   </div>
 
-  <!-- 图表 -->
-  <iframe :src="iframeUrl" style="flex:1;border:none"></iframe>
+  <!-- 图表区域 -->
+  <iframe :src="iframeUrl" class="flex-1 border-0 bg-dark"></iframe>
 </div>
 
 <script>
@@ -49,15 +122,27 @@ const { createApp } = Vue
 
 createApp({
   data() {
+    // 获取当前日期作为默认值
+    const today = new Date();
+    const defaultDate = today.toISOString().split('T')[0];
+
     return {
       interval: "5m",
       timezone: "SHANGHAI",
-      start: "2025-12-25 00:00:00",
-      end: "2025-12-25 23:59:59",
+      selectedDate: defaultDate, // 新增：选中的日期
+      start: `${defaultDate} 00:00:00`,
+      end: `${defaultDate} 23:59:59`,
       iframeUrl: ""
     }
   },
   methods: {
+    // 新增：根据选择的日期更新时间范围
+    updateTimeRange() {
+      if (this.selectedDate) {
+        this.start = `${this.selectedDate} 00:00:00`;
+        this.end = `${this.selectedDate} 23:59:59`;
+      }
+    },
     reload() {
       const q = new URLSearchParams({
         interval: this.interval,
