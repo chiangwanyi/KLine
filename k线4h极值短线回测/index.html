@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <title>TradingView Style Kline</title>
+
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <style>
+        html, body {
+            margin: 0;
+            height: 100%;
+        }
+    </style>
+</head>
+
+<body>
+<div id="app" class="flex h-screen" :class="isDarkMode ? 'bg-[#0b0e11] text-white' : 'bg-gray-100 text-gray-900'">
+
+    <!-- 控制面板 -->
+    <div class="w-80 p-4 border-r border-gray-700 space-y-4 overflow-y-auto">
+        <div class="flex justify-between items-center">
+            <h2 class="text-lg font-semibold">参数设置</h2>
+            <button @click="toggleTheme">
+                {{ isDarkMode ? '🌙' : '☀️' }}
+            </button>
+        </div>
+
+        <!-- 周期 -->
+        <div>
+            <label class="text-sm">周期</label>
+            <select v-model="interval" class="w-full p-2 rounded bg-gray-700 text-white">
+                <option>5m</option>
+                <option>15m</option>
+                <option>1h</option>
+                <option>4h</option>
+            </select>
+        </div>
+
+        <!-- 时区 -->
+        <div>
+            <label class="text-sm">时区</label>
+            <select v-model="timezone"
+                    class="w-full p-2 rounded bg-gray-700 text-white">
+                <option value="UTC">UTC</option>
+                <option value="Asia/Shanghai">上海</option>
+                <option value="Asia/Tokyo">东京</option>
+                <option value="America/New_York">纽约</option>
+            </select>
+        </div>
+
+        <!-- 日期 -->
+        <div>
+            <label class="text-sm">日期</label>
+            <input type="date" v-model="selectedDate"
+                   class="w-full p-2 rounded bg-gray-700 text-white"
+                   @change="updateTimeRange">
+        </div>
+
+        <!-- 时间范围 -->
+        <div class="grid grid-cols-2 gap-2 text-xs">
+            <input v-model="start" readonly class="p-2 rounded bg-gray-800">
+            <input v-model="end" readonly class="p-2 rounded bg-gray-800">
+        </div>
+
+        <!-- EMA -->
+        <div class="border-t pt-3">
+            <div class="flex justify-between items-center mb-2">
+                <span class="text-sm">EMA 设置</span>
+                <button @click="addEma" class="text-xs text-blue-400">+ 添加</button>
+            </div>
+
+            <div v-for="(ema, i) in emaLines" :key="i"
+                 class="p-2 mb-2 rounded bg-gray-800 space-y-1">
+                <div class="flex justify-between">
+                    <span class="text-xs">EMA {{ i + 1 }}</span>
+                    <button @click="removeEma(i)" class="text-red-400 text-xs">删除</button>
+                </div>
+                <input type="number" v-model.number="ema.length"
+                       class="w-full p-1 rounded bg-gray-700 text-xs">
+                <input type="color" v-model="ema.color" class="w-full h-6">
+            </div>
+        </div>
+
+        <button @click="reload"
+                class="w-full bg-blue-600 hover:bg-blue-500 p-2 rounded">
+            加载数据
+        </button>
+    </div>
+
+    <!-- 图表 -->
+    <div ref="chartEl" class="flex-1"></div>
+</div>
+
+<script>
+    const { createApp } = Vue
+
+    createApp({
+        data() {
+            const today = new Date().toISOString().slice(0, 10)
+            return {
+                symbol: 'BTCUSDT',
+                interval: '5m',
+                timezone: 'Asia/Shanghai',
+                selectedDate: today,
+                start: `${today} 00:00:00`,
+                end: `${today} 23:59:59`,
+                isDarkMode: true,
+                emaLines: [{ length: 20, color: '#3b82f6' }],
+                chart: null,
+                candleSeries: null,
+                emaSeriesList: []
+            }
+        },
+
+        methods: {
+            toggleTheme() {
+                this.isDarkMode = !this.isDarkMode
+                this.initChart()
+                this.reload()
+            },
+
+            toUtcTimestamp(dateStr, timezone) {
+                // 修复核心：正确处理指定时区的时间转换
+                try {
+                    // dateStr: "2025-12-26 00:00:00"
+                    const [datePart, timePart] = dateStr.split(' ')
+                    if (!datePart || !timePart) {
+                        throw new Error('日期格式错误')
+                    }
+
+                    // 创建指定时区的日期对象
+                    const [year, month, day] = datePart.split('-').map(Number)
+                    const [hour, minute, second] = timePart.split(':').map(Number)
+
+                    // 创建时区感知的日期
+                    const formatter = new Intl.DateTimeFormat('en-US', {
+                        timeZone: timezone,
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit',
+                        hour12: false
+                    });
+
+                    // 构造带时区的日期字符串
+                    const localDateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:${String(second).padStart(2, '0')}`;
+                    const date = new Date(localDateStr);
+
+                    // 转换为UTC时间戳（秒）
+                    const timestamp = Math.floor(date.getTime() / 1000);
+
+                    if (isNaN(timestamp)) {
+                        throw new Error('无法解析时间戳');
+                    }
+
+                    return timestamp;
+                } catch (error) {
+                    console.error('时间转换错误:', error);
+                    // 降级使用当前日期的0点
+                    const fallbackDate = new Date(this.selectedDate);
+                    return Math.floor(fallbackDate.getTime() / 1000);
+                }
+            },
+
+            updateTimeRange() {
+                this.start = `${this.selectedDate} 00:00:00`
+                this.end = `${this.selectedDate} 23:59:59`
+            },
+
+            addEma() {
+                this.emaLines.push({ length: 50, color: '#ef4444' })
+            },
+
+            removeEma(i) {
+                this.emaLines.splice(i, 1)
+                this.reload()
+            },
+
+            async reload() {
+                try {
+                    const startTs = this.toUtcTimestamp(this.start, this.timezone)
+                    const endTs = this.toUtcTimestamp(this.end, this.timezone)
+
+                    const url = `http://127.0.0.1:8001/api/klines`
+                        + `?symbol=${this.symbol}`
+                        + `&interval=${this.interval}`
+                        + `&start=${startTs}`
+                        + `&end=${endTs}`
+
+                    console.log('请求URL:', url); // 调试用
+                    const response = await fetch(url);
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP错误: ${response.status}`);
+                    }
+
+                    const data = await response.json()
+                    this.candleSeries.setData(data)
+                    this.drawEma(data)
+                } catch (error) {
+                    console.error('加载数据失败:', error);
+                    // 可以添加用户友好的错误提示
+                    alert('数据加载失败: ' + error.message);
+                }
+            },
+
+            drawEma(data) {
+                if (!data || data.length === 0) return;
+                this.emaSeriesList.forEach(s => this.chart.removeSeries(s))
+                this.emaSeriesList = []
+
+                this.emaLines.forEach(cfg => {
+                    const series = this.chart.addSeries(
+                        LightweightCharts.LineSeries,
+                        { color: cfg.color, lineWidth: 2 }
+                    )
+
+                    let prev = data[0].close
+                    const k = 2 / (cfg.length + 1)
+
+                    const ema = data.map((d, i) => {
+                        const v = i === 0 ? d.close : d.close * k + prev * (1 - k)
+                        prev = v
+                        return { time: d.time, value: v }
+                    })
+
+                    series.setData(ema)
+                    this.emaSeriesList.push(series)
+                })
+            },
+
+            initChart() {
+                if (this.chart) this.chart.remove()
+
+                this.chart = LightweightCharts.createChart(this.$refs.chartEl, {
+                    layout: {
+                        background: { color: this.isDarkMode ? '#0b0e11' : '#ffffff' },
+                        textColor: this.isDarkMode ? '#d1d4dc' : '#111827',
+                    },
+                    crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+                    handleScroll: true,
+                    handleScale: true,
+                })
+
+                this.candleSeries = this.chart.addSeries(
+                    LightweightCharts.CandlestickSeries,
+                    {
+                        upColor: '#26a69a',
+                        downColor: '#ef5350',
+                        borderVisible: false,
+                        wickUpColor: '#26a69a',
+                        wickDownColor: '#ef5350',
+                    }
+                )
+            }
+        },
+
+        mounted() {
+            this.initChart()
+            this.reload()
+        }
+    }).mount('#app')
+</script>
+</body>
+</html>
