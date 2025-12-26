@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>TradingView Style Chart</title>
+  <script src="./vue.global.js"></script>
+</head>
+<body style="margin:0;background:#0b0e11;color:white">
+
+<div id="app" style="display:flex;height:100vh">
+  <!-- 控制面板 -->
+  <div style="width:300px;padding:10px;background:#111">
+    <h3>参数设置</h3>
+
+    <label>周期</label>
+    <select v-model="interval">
+      <option>5m</option>
+      <option>15m</option>
+      <option>1h</option>
+    </select>
+
+    <br/><br/>
+    <label>时区</label>
+    <select v-model="timezone">
+      <option value="NY">New York</option>
+      <option value="UTC">UTC</option>
+      <option value="TOKYO">Tokyo</option>
+      <option value="SHANGHAI">Shanghai</option>
+    </select>
+
+    <br/><br/>
+    <label>开始时间</label>
+    <input v-model="start" style="width:100%" />
+
+    <br/><br/>
+    <label>结束时间</label>
+    <input v-model="end" style="width:100%" />
+
+    <br/><br/>
+    <button @click="reload">加载</button>
+  </div>
+
+  <!-- 图表 -->
+  <iframe :src="iframeUrl" style="flex:1;border:none"></iframe>
+</div>
+
+<script>
+const { createApp } = Vue
+
+createApp({
+  data() {
+    return {
+      interval: "5m",
+      timezone: "SHANGHAI",
+      start: "2025-12-25 00:00:00",
+      end: "2025-12-25 23:59:59",
+      iframeUrl: ""
+    }
+  },
+  methods: {
+    reload() {
+      const q = new URLSearchParams({
+        interval: this.interval,
+        timezone: this.timezone,
+        start: this.start,
+        end: this.end
+      })
+      this.iframeUrl = "http://127.0.0.1:8000/chart?" + q.toString()
+    }
+  },
+  mounted() {
+    this.reload()
+  }
+}).mount("#app")
+</script>
+
+</body>
+</html>
