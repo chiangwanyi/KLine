@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Query
 from fastapi.responses import HTMLResponse
+from fastapi.responses import FileResponse
 import requests
 import pandas as pd
 import pytz
@@ -17,6 +18,10 @@ TZ_MAP = {
     "TOKYO": pytz.timezone("Asia/Tokyo"),
     "SHANGHAI": pytz.timezone("Asia/Shanghai"),
 }
+
+@app.get("/", response_class=FileResponse)
+def index():
+    return FileResponse("frontend/index.html")
 
 @app.get("/chart", response_class=HTMLResponse)
 def chart(
