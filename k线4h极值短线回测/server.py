@@ -45,11 +45,13 @@ def chart(
     # 结束时间，必填参数，格式同start
     end: str = Query(...),
     # 时区，默认纽约时区，可选值为TZ_MAP的键
-    timezone: str = Query("NY")
+    timezone: str = Query("NY"),
+    # EMA长度，默认20，最小值1，最大值200
+    ema_length: int = Query(20, ge=1, le=200)
 ):
     # 根据传入的时区标识获取对应的pytz时区对象
     tz = TZ_MAP[timezone]
-    print(f'请求时间：{start} - {end}，时区：{timezone}')
+    print(f'请求时间：{start} - {end}，时区：{timezone}，EMA长度：{ema_length}')
     # 1. 时间处理：将用户传入的本地时间字符串转为指定时区的datetime对象
     # 解析时间字符串为datetime（无时区），再绑定指定时区
     start_dt = tz.localize(datetime.strptime(start, "%Y-%m-%d %H:%M:%S"))
@@ -95,7 +97,12 @@ def chart(
     hi = session["high"].max()  # 该时段最高价
     lo = session["low"].min()   # 该时段最低价
 
-    # 8. 生成Plotly蜡烛图
+    # 8. 计算EMA（指数移动平均线）
+    # 使用pandas的ewm()函数计算指数加权移动平均
+    # span参数设置为ema_length，adjust=False使用标准的EMA计算公式
+    df[f'ema_{ema_length}'] = df['close'].ewm(span=ema_length, adjust=False).mean()
+
+    # 9. 生成Plotly蜡烛图
     fig = go.Figure(go.Candlestick(
         x=df["time"],           # X轴：时间
         open=df["open"],        # 开盘价
@@ -106,13 +113,23 @@ def chart(
         decreasing_line_color="#ef5350"   # 下跌K线颜色（红色）
     ))
 
-    # 9. 添加时段高低价标记线
+    # 10. 添加EMA指标线
+    fig.add_trace(go.Scatter(
+        x=df["time"],
+        y=df[f'ema_{ema_length}'],
+        mode='lines',
+        name=f'EMA ({ema_length})',
+        line=dict(color='blue', width=1.5),
+        hovertemplate=f'EMA ({ema_length}): %{{y:.2f}}<extra></extra>'
+    ))
+
+    # 11. 添加时段高低价标记线
     # 添加红色虚线标记时段最高价，标注"时段最高价"
     fig.add_hline(y=hi, line=dict(color="red", dash="dash"), annotation_text="时段最高价")
     # 添加绿色虚线标记时段最低价，标注"时段最低价"
     fig.add_hline(y=lo, line=dict(color="green", dash="dash"), annotation_text="时段最低价")
 
-    # 10. 图表样式配置
+    # 12. 图表样式配置
     fig.update_layout(
         xaxis_rangeslider_visible=False,  # 隐藏X轴下方的范围滑块
         yaxis_side="left",               # Y轴显示在右侧
@@ -124,15 +141,22 @@ def chart(
         height=700,                       # 图表高度
         # 新增中文标题和轴标签（可选优化）
         title={
-            'text': f'{SYMBOL} K线图 ({interval})',
+            'text': f'{SYMBOL} K线图 ({interval}) - EMA({ema_length})',
             'x': 0.5,
             'xanchor': 'center'
         },
         xaxis_title="时间",
-        yaxis_title="价格 (USDT)"
+        yaxis_title="价格 (USDT)",
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1
+        )
     )
 
-    # 11. 将图表转为HTML字符串返回（使用CDN加载PlotlyJS，减小体积）
+    # 13. 将图表转为HTML字符串返回（使用CDN加载PlotlyJS，减小体积）
     return fig.to_html(include_plotlyjs="cdn")
 
 # 程序入口：启动FastAPI服务
