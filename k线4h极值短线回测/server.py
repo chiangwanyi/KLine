@@ -49,7 +49,7 @@ def chart(
 ):
     # 根据传入的时区标识获取对应的pytz时区对象
     tz = TZ_MAP[timezone]
-
+    print(f'请求时间：{start} - {end}，时区：{timezone}')
     # 1. 时间处理：将用户传入的本地时间字符串转为指定时区的datetime对象
     # 解析时间字符串为datetime（无时区），再绑定指定时区
     start_dt = tz.localize(datetime.strptime(start, "%Y-%m-%d %H:%M:%S"))
@@ -66,7 +66,7 @@ def chart(
         "interval": interval,   # K线周期
         "startTime": start_ts,  # 开始时间戳（毫秒）
         "endTime": end_ts,      # 结束时间戳（毫秒）
-        "limit": 1000           # 单次请求最大数据量（币安限制）
+        "limit": 1000           # 单次请求最大数据量（币安限制1500）
     })
     # 检查请求是否成功，失败则抛出异常
     resp.raise_for_status()
@@ -107,21 +107,29 @@ def chart(
     ))
 
     # 9. 添加时段高低价标记线
-    # 添加红色虚线标记时段最高价，标注"Session High"
-    fig.add_hline(y=hi, line=dict(color="red", dash="dash"), annotation_text="Session High")
-    # 添加绿色虚线标记时段最低价，标注"Session Low"
-    fig.add_hline(y=lo, line=dict(color="green", dash="dash"), annotation_text="Session Low")
+    # 添加红色虚线标记时段最高价，标注"时段最高价"
+    fig.add_hline(y=hi, line=dict(color="red", dash="dash"), annotation_text="时段最高价")
+    # 添加绿色虚线标记时段最低价，标注"时段最低价"
+    fig.add_hline(y=lo, line=dict(color="green", dash="dash"), annotation_text="时段最低价")
 
     # 10. 图表样式配置
     fig.update_layout(
         xaxis_rangeslider_visible=False,  # 隐藏X轴下方的范围滑块
-        yaxis_side="right",               # Y轴显示在右侧
+        yaxis_side="left",               # Y轴显示在右侧
         yaxis_tickformat=".0f",           # Y轴价格格式（无小数）
         hovermode="x unified",            # 悬停时统一显示X轴对应所有数据
         plot_bgcolor="#0b0e11",           # 绘图区域背景色（深灰）
         paper_bgcolor="#0b0e11",          # 整个图表背景色（深灰）
         font=dict(color="white"),         # 字体颜色（白色）
-        height=700                        # 图表高度
+        height=700,                       # 图表高度
+        # 新增中文标题和轴标签（可选优化）
+        title={
+            'text': f'{SYMBOL} K线图 ({interval})',
+            'x': 0.5,
+            'xanchor': 'center'
+        },
+        xaxis_title="时间",
+        yaxis_title="价格 (USDT)"
     )
 
     # 11. 将图表转为HTML字符串返回（使用CDN加载PlotlyJS，减小体积）
