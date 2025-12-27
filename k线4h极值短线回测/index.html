@@ -152,7 +152,6 @@
             opacity: 0;
             transition: opacity 0.2s ease;
             min-width: 180px;
-            /* 新增：防止溢出时隐藏 */
             max-width: 220px;
             box-sizing: border-box;
         }
@@ -214,7 +213,7 @@
                 <label>快速选择日期</label>
                 <input type="date" v-model="selectedDate" @change="fillDay">
                 <label>K线周期</label>
-                <select v-model="interval">
+                <select v-model="interval" @change="handleIntervalChange">
                     <option>1m</option>
                     <option>5m</option>
                     <option>1h</option>
@@ -239,6 +238,18 @@
                     <button class="small-btn" @click="removeEma(i)">删除</button>
                 </div>
                 <button @click="addEma">+ 添加 EMA</button>
+            </div>
+            <!-- 凌晨时段高低点 -->
+            <div class="panel" v-if="interval === '5m' && (earlyHigh || earlyLow)">
+                <h3>凌晨时段(0:00-4:00)高低点</h3>
+                <div class="tooltip-item">
+                    <span class="tooltip-label">最高价格</span>
+                    <span class="tooltip-value tooltip-up">{{ earlyHigh?.toFixed(4) }}</span>
+                </div>
+                <div class="tooltip-item">
+                    <span class="tooltip-label">最低价格</span>
+                    <span class="tooltip-value tooltip-down">{{ earlyLow?.toFixed(4) }}</span>
+                </div>
             </div>
             <!-- 合约计算器 -->
             <div class="panel">
@@ -288,6 +299,9 @@
                     chart: null,
                     candleSeries: null,
                     emaSeries: [],
+                    // 新增：凌晨时段高低点线系列
+                    earlyHighLine: null,
+                    earlyLowLine: null,
                     klines: [],
 
                     // 核心配置项
@@ -298,6 +312,12 @@
                     endTime: '',
                     selectedDate: '',
                     emas: [],
+
+                    // 新增：凌晨时段高低点数据
+                    earlyHigh: null,
+                    earlyLow: null,
+                    earlySessionStart: null,
+                    earlySessionEnd: null,
 
                     // 悬浮提示相关数据
                     currentKline: null,
@@ -400,7 +420,7 @@
                 },
 
                 /**
-                 * 核心修改：优化十字光标监听，让悬浮框紧贴光标
+                 * 初始化十字光标监听
                  */
                 initCrosshairListener() {
                     if (!this.chart || !this.candleSeries) return;
@@ -413,7 +433,7 @@
                             return;
                         }
 
-                        // 1. 匹配当前K线数据
+                        // 匹配当前K线数据
                         const currentKline = this.klines.find(k => k.time === param.time);
                         if (!currentKline) {
                             this.currentKline = null;
@@ -422,25 +442,25 @@
                         }
                         this.currentKline = currentKline;
 
-                        // 2. 计算提示框位置（关键修改：减少偏移量，改为紧贴光标）
+                        // 计算提示框位置
                         const chartRect = this.$refs.chartEl.getBoundingClientRect();
                         const tooltipEl = this.$refs.tooltipEl;
                         const tooltipWidth = tooltipEl.offsetWidth || 180;
                         const tooltipHeight = tooltipEl.offsetHeight || 100;
 
-                        // 光标右侧偏移10px，下方偏移5px（紧贴效果）
+                        // 光标右侧偏移10px，下方偏移5px
                         let left = point.x + 10;
                         let top = point.y + 5;
 
-                        // 3. 边界处理：防止提示框溢出图表容器
+                        // 边界处理
                         const maxLeft = chartRect.width - tooltipWidth - 10;
                         const maxTop = chartRect.height - tooltipHeight - 10;
                         left = Math.min(left, maxLeft);
-                        left = Math.max(left, 10); // 左边界留10px
+                        left = Math.max(left, 10);
                         top = Math.min(top, maxTop);
-                        top = Math.max(top, 10); // 上边界留10px
+                        top = Math.max(top, 10);
 
-                        // 4. 更新位置（基于图表容器的相对坐标）
+                        // 更新位置
                         this.tooltipPos = {
                             top: top,
                             left: left,
@@ -474,10 +494,134 @@
                         this.candleSeries.setData(this.klines);
                         this.chart.timeScale().fitContent();
                         this.updateIndicators();
+                        // 新增：计算并绘制凌晨时段高低点
+                        this.calculateAndDrawEarlySessionLevels();
                         this.saveCache();
                     } catch (error) {
                         console.error('加载K线数据失败：', error);
                         alert('加载K线数据失败，请检查接口是否可用或控制台查看详情！');
+                    }
+                },
+
+                /**
+                 * 新增：计算并绘制凌晨时段(0:00-4:00)的高低点
+                 */
+                calculateAndDrawEarlySessionLevels() {
+                    // 只在5分钟周期下才计算
+                    if (this.interval !== '5m' || this.klines.length === 0) {
+                        this.clearEarlySessionLines();
+                        this.earlyHigh = null;
+                        this.earlyLow = null;
+                        return;
+                    }
+
+                    // 确定当前数据覆盖的日期范围
+                    const firstKlineTime = this.klines[0].time * 1000;
+                    const lastKlineTime = this.klines[this.klines.length - 1].time * 1000;
+                    
+                    // 找出所有在0:00-4:00之间的K线
+                    const earlySessionKlines = [];
+                    
+                    this.klines.forEach(kline => {
+                        const date = new Date(kline.time * 1000);
+                        // 转换为用户选择的时区
+                        const localTime = new Intl.DateTimeFormat('en-US', {
+                            timeZone: this.timezone,
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            hour12: false
+                        }).format(date);
+                        
+                        const hour = parseInt(localTime.split(':')[0], 10);
+                        // 检查是否在0:00-4:00之间
+                        if (hour >= 0 && hour < 4) {
+                            earlySessionKlines.push(kline);
+                        }
+                    });
+
+                    if (earlySessionKlines.length === 0) {
+                        this.clearEarlySessionLines();
+                        this.earlyHigh = null;
+                        this.earlyLow = null;
+                        return;
+                    }
+
+                    // 计算这段时间的最高和最低价
+                    this.earlyHigh = Math.max(...earlySessionKlines.map(k => k.high));
+                    this.earlyLow = Math.min(...earlySessionKlines.map(k => k.low));
+                    
+                    // 记录时段的起止时间
+                    this.earlySessionStart = Math.min(...earlySessionKlines.map(k => k.time));
+                    this.earlySessionEnd = Math.max(...earlySessionKlines.map(k => k.time));
+
+                    // 绘制水平线
+                    this.drawEarlySessionLines();
+                },
+
+                /**
+                 * 新增：绘制凌晨时段高低点水平线
+                 */
+                drawEarlySessionLines() {
+                    // 清除已有线条
+                    this.clearEarlySessionLines();
+
+                    // 创建高点线（黄色虚线）
+                    this.earlyHighLine = this.chart.addSeries(LightweightCharts.LineSeries, {
+                        color: 'rgba(255, 215, 0, 0.7)',  // 金色
+                        lineWidth: 1.5,
+                        lineStyle: LightweightCharts.LineStyle.Dashed,
+                        crosshairMarkerVisible: false
+                    });
+
+                    // 创建低点线（青色虚线）
+                    this.earlyLowLine = this.chart.addSeries(LightweightCharts.LineSeries, {
+                        color: 'rgba(0, 255, 255, 0.7)',  // 青色
+                        lineWidth: 1.5,
+                        lineStyle: LightweightCharts.LineStyle.Dashed,
+                        crosshairMarkerVisible: false
+                    });
+
+                    // 为高点线和低点线设置数据（在整个图表范围内显示）
+                    const highLineData = [
+                        { time: this.klines[0].time, value: this.earlyHigh },
+                        { time: this.klines[this.klines.length - 1].time, value: this.earlyHigh }
+                    ];
+
+                    const lowLineData = [
+                        { time: this.klines[0].time, value: this.earlyLow },
+                        { time: this.klines[this.klines.length - 1].time, value: this.earlyLow }
+                    ];
+
+                    this.earlyHighLine.setData(highLineData);
+                    this.earlyLowLine.setData(lowLineData);
+                },
+
+                /**
+                 * 新增：清除凌晨时段高低点线条
+                 */
+                clearEarlySessionLines() {
+                    if (this.earlyHighLine) {
+                        this.chart.removeSeries(this.earlyHighLine);
+                        this.earlyHighLine = null;
+                    }
+                    if (this.earlyLowLine) {
+                        this.chart.removeSeries(this.earlyLowLine);
+                        this.earlyLowLine = null;
+                    }
+                },
+
+                /**
+                 * 新增：处理周期变化
+                 */
+                handleIntervalChange() {
+                    // 当切换到5分钟周期时，重新计算高低点
+                    if (this.interval === '5m' && this.klines.length > 0) {
+                        this.calculateAndDrawEarlySessionLevels();
+                    } else {
+                        // 其他周期清除线条
+                        this.clearEarlySessionLines();
+                        this.earlyHigh = null;
+                        this.earlyLow = null;
                     }
                 },
 
@@ -517,6 +661,11 @@
                         lineSeries.setData(this.calcEMA(this.klines, ema.length));
                         this.emaSeries.push(lineSeries);
                     });
+
+                    // 重新绘制凌晨时段线条（防止被EMA线条覆盖）
+                    if (this.interval === '5m' && this.earlyHigh && this.earlyLow) {
+                        this.drawEarlySessionLines();
+                    }
 
                     if (this.klines.length > 0) this.chart.timeScale().fitContent();
                 },
