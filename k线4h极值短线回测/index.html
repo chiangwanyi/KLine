@@ -343,9 +343,6 @@
                         alert('请填写完整的合约Symbol和时间范围！');
                         return;
                     }
-                    console.log(`time range: ${this.startTime} ~ ${this.endTime}`)
-                    // 关键：将「选中时区的本地时间范围」转为后台需要的UTC毫秒级时间戳
-
                     // 验证转换结果
                     if (!this.startTime || !this.endTime) {
                         alert('时间格式无效，请检查输入！');
@@ -358,7 +355,6 @@
                         const res = await fetch(url);
                         if (!res.ok) throw new Error(`请求失败：${res.status} ${res.statusText}`);
                         const data = await res.json();
-                        console.log(data);
                         // 格式化K线数据（适配Lightweight Charts，毫秒转秒级UTC时间戳）
                         this.klines = data.map(k => ({
                             time: Math.floor(k.time / 1000), // 后台返回UTC毫秒级→转秒级供图表使用
