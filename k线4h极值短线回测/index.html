@@ -97,6 +97,26 @@
             font-size: 12px;
         }
 
+        /* 颜色选择器样式优化 */
+        input[type="color"] {
+            padding: 2px;
+            height: 34px;
+            cursor: pointer;
+            background: #0f172a;
+        }
+
+        /* 透明度输入框样式 */
+        .opacity-input {
+            width: 100%;
+            margin-top: 4px;
+            background: #0f172a;
+            color: #e5e7eb;
+            border: 1px solid #334155;
+            padding: 6px 8px;
+            border-radius: 3px;
+            font-size: 12px;
+        }
+
         input:focus,
         select:focus {
             outline: none;
@@ -122,8 +142,8 @@
         .ema-row {
             border: 1px solid #334155;
             padding: 10px;
-            margin-top: 8px;
-            border-radius: 3px;
+            margin-bottom: 8px;
+            border-radius: 4px;
             background: #0f172a;
         }
 
@@ -227,30 +247,51 @@
                 </select>
                 <button @click="loadKlines">请求K线数据</button>
             </div>
-            <!-- 技术指标 -->
+
+            <!-- 凌晨时段高低点设置（支持颜色+透明度自定义） -->
+            <div class="panel">
+                <h3>凌晨时段(0:00-4:00)高低点设置</h3>
+                <label>最高价线段颜色</label>
+                <input type="color" v-model="earlyHighColorHex" @change="updateEarlyHighRgba">
+                <label>最高价线段透明度 (0-1)</label>
+                <input type="number" v-model.number="earlyHighOpacity" min="0" max="1" step="0.1"
+                    @change="updateEarlyHighRgba" class="opacity-input">
+
+                <label style="margin-top: 12px;">最低价线段颜色</label>
+                <input type="color" v-model="earlyLowColorHex" @change="updateEarlyLowRgba">
+                <label>最低价线段透明度 (0-1)</label>
+                <input type="number" v-model.number="earlyLowOpacity" min="0" max="1" step="0.1"
+                    @change="updateEarlyLowRgba" class="opacity-input">
+
+                <!-- 实时显示高低点数值 -->
+                <div v-if="earlyHigh || earlyLow" style="margin-top: 12px; padding-top: 8px; border-top: 1px solid #1e293b;">
+                    <div class="tooltip-item">
+                        <span class="tooltip-label">最高价格</span>
+                        <span class="tooltip-value tooltip-up">{{ earlyHigh?.toFixed(4) }}</span>
+                    </div>
+                    <div class="tooltip-item">
+                        <span class="tooltip-label">最低价格</span>
+                        <span class="tooltip-value tooltip-down">{{ earlyLow?.toFixed(4) }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 技术指标 - EMA（支持颜色+透明度自定义） -->
             <div class="panel">
                 <h3>技术指标 - EMA</h3>
                 <div v-for="(ema, i) in emas" :key="ema.id" class="ema-row">
                     <label>周期</label>
                     <input type="number" v-model.number="ema.length" @input="updateIndicators" min="1">
-                    <label>颜色 (rgba)</label>
-                    <input v-model="ema.color" @input="updateIndicators" placeholder="例如：rgba(255,255,0,0.8)">
+                    <label>均线颜色</label>
+                    <input type="color" v-model="ema.colorHex" @change="updateEmaRgba(ema)">
+                    <label>均线透明度 (0-1)</label>
+                    <input type="number" v-model.number="ema.opacity" min="0" max="1" step="0.1"
+                        @change="updateEmaRgba(ema)" class="opacity-input">
                     <button class="small-btn" @click="removeEma(i)">删除</button>
                 </div>
                 <button @click="addEma">+ 添加 EMA</button>
             </div>
-            <!-- 凌晨时段高低点 -->
-            <div class="panel" v-if="interval === '5m' && (earlyHigh || earlyLow)">
-                <h3>凌晨时段(0:00-4:00)高低点</h3>
-                <div class="tooltip-item">
-                    <span class="tooltip-label">最高价格</span>
-                    <span class="tooltip-value tooltip-up">{{ earlyHigh?.toFixed(4) }}</span>
-                </div>
-                <div class="tooltip-item">
-                    <span class="tooltip-label">最低价格</span>
-                    <span class="tooltip-value tooltip-down">{{ earlyLow?.toFixed(4) }}</span>
-                </div>
-            </div>
+
             <!-- 合约计算器 -->
             <div class="panel">
                 <h3>合约计算器</h3>
@@ -259,6 +300,7 @@
                 </div>
             </div>
         </div>
+
         <!-- 图表区 -->
         <div class="right" ref="chartEl">
             <div class="kline-tooltip" ref="tooltipEl"
@@ -299,7 +341,7 @@
                     chart: null,
                     candleSeries: null,
                     emaSeries: [],
-                    // 新增：凌晨时段高低点线系列
+                    // 凌晨时段高低点线系列
                     earlyHighLine: null,
                     earlyLowLine: null,
                     klines: [],
@@ -311,13 +353,19 @@
                     startTime: '',
                     endTime: '',
                     selectedDate: '',
-                    emas: [],
 
-                    // 新增：凌晨时段高低点数据
+                    // 凌晨时段高低点配置（支持16进制颜色+透明度）
                     earlyHigh: null,
                     earlyLow: null,
-                    earlySessionStart: null,
-                    earlySessionEnd: null,
+                    earlyHighColorHex: '#ffd700', // 金色默认
+                    earlyHighOpacity: 0.7,
+                    earlyHighRgba: 'rgba(255, 215, 0, 0.7)',
+                    earlyLowColorHex: '#00ffff', // 青色默认
+                    earlyLowOpacity: 0.7,
+                    earlyLowRgba: 'rgba(0, 255, 255, 0.7)',
+
+                    // EMA配置（每个EMA包含16进制颜色+透明度+RGBA，支持全缓存）
+                    emas: [],
 
                     // 悬浮提示相关数据
                     currentKline: null,
@@ -331,11 +379,16 @@
 
             mounted() {
                 this.initChart();
-                this.loadCache();
+                this.loadCache(); // 优先加载缓存
                 this.setDefaultTodayTime();
                 this.updateChartTimeFormatter();
                 this.updateIndicators();
                 this.initCrosshairListener();
+
+                // 初始化EMA和凌晨时段的RGBA值（从缓存/默认值转换）
+                this.emas.forEach(ema => this.updateEmaRgba(ema));
+                this.updateEarlyHighRgba();
+                this.updateEarlyLowRgba();
 
                 window.addEventListener('resize', this.handleWindowResize);
             },
@@ -346,7 +399,7 @@
 
             methods: {
                 /**
-                 * 格式化时间
+                 * 格式化时间（转换为用户选择的时区）
                  */
                 formatUtcToSelectedTimezone(utcTimestamp) {
                     if (!utcTimestamp) return '';
@@ -363,7 +416,7 @@
                 },
 
                 /**
-                 * 更新时间格式化
+                 * 更新图表时间格式化器
                  */
                 updateChartTimeFormatter() {
                     if (!this.chart) return;
@@ -373,7 +426,7 @@
                 },
 
                 /**
-                 * 设置默认时间
+                 * 设置默认当日时间
                  */
                 setDefaultTodayTime() {
                     if (this.startTime && this.endTime) return;
@@ -420,7 +473,7 @@
                 },
 
                 /**
-                 * 初始化十字光标监听
+                 * 初始化十字光标监听（悬浮提示）
                  */
                 initCrosshairListener() {
                     if (!this.chart || !this.candleSeries) return;
@@ -442,17 +495,15 @@
                         }
                         this.currentKline = currentKline;
 
-                        // 计算提示框位置
+                        // 计算提示框位置（边界处理）
                         const chartRect = this.$refs.chartEl.getBoundingClientRect();
                         const tooltipEl = this.$refs.tooltipEl;
                         const tooltipWidth = tooltipEl.offsetWidth || 180;
                         const tooltipHeight = tooltipEl.offsetHeight || 100;
 
-                        // 光标右侧偏移10px，下方偏移5px
                         let left = point.x + 10;
                         let top = point.y + 5;
 
-                        // 边界处理
                         const maxLeft = chartRect.width - tooltipWidth - 10;
                         const maxTop = chartRect.height - tooltipHeight - 10;
                         left = Math.min(left, maxLeft);
@@ -460,7 +511,7 @@
                         top = Math.min(top, maxTop);
                         top = Math.max(top, 10);
 
-                        // 更新位置
+                        // 更新提示框位置
                         this.tooltipPos = {
                             top: top,
                             left: left,
@@ -494,9 +545,8 @@
                         this.candleSeries.setData(this.klines);
                         this.chart.timeScale().fitContent();
                         this.updateIndicators();
-                        // 新增：计算并绘制凌晨时段高低点
-                        this.calculateAndDrawEarlySessionLevels();
-                        this.saveCache();
+                        this.calculateAndDrawEarlySessionLevels(); // 计算凌晨高低点
+                        this.saveCache(); // 保存最新数据到缓存
                     } catch (error) {
                         console.error('加载K线数据失败：', error);
                         alert('加载K线数据失败，请检查接口是否可用或控制台查看详情！');
@@ -504,10 +554,58 @@
                 },
 
                 /**
-                 * 新增：计算并绘制凌晨时段(0:00-4:00)的高低点
+                 * 转换16进制颜色到RGBA（带透明度）
+                 */
+                hexToRgba(hex, opacity) {
+                    // 去除#号
+                    hex = hex.replace(/^#/, '');
+                    // 解析RGB值
+                    const r = parseInt(hex.substring(0, 2), 16);
+                    const g = parseInt(hex.substring(2, 4), 16);
+                    const b = parseInt(hex.substring(4, 6), 16);
+                    // 返回RGBA格式
+                    return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+                },
+
+                /**
+                 * 更新凌晨时段最高价线段的RGBA值
+                 */
+                updateEarlyHighRgba() {
+                    this.earlyHighRgba = this.hexToRgba(this.earlyHighColorHex, this.earlyHighOpacity);
+                    // 实时更新图表线条
+                    if (this.earlyHighLine && this.earlyHigh) {
+                        this.earlyHighLine.applyOptions({ color: this.earlyHighRgba });
+                        this.saveCache();
+                    }
+                },
+
+                /**
+                 * 更新凌晨时段最低价线段的RGBA值
+                 */
+                updateEarlyLowRgba() {
+                    this.earlyLowRgba = this.hexToRgba(this.earlyLowColorHex, this.earlyLowOpacity);
+                    // 实时更新图表线条
+                    if (this.earlyLowLine && this.earlyLow) {
+                        this.earlyLowLine.applyOptions({ color: this.earlyLowRgba });
+                        this.saveCache();
+                    }
+                },
+
+                /**
+                 * 更新单个EMA的RGBA值
+                 */
+                updateEmaRgba(ema) {
+                    ema.color = this.hexToRgba(ema.colorHex, ema.opacity);
+                    // 实时更新图表EMA线条
+                    this.updateIndicators();
+                    this.saveCache();
+                },
+
+                /**
+                 * 计算并绘制凌晨时段(0:00-4:00)的高低点
                  */
                 calculateAndDrawEarlySessionLevels() {
-                    // 只在5分钟周期下才计算
+                    // 只在5分钟周期下计算
                     if (this.interval !== '5m' || this.klines.length === 0) {
                         this.clearEarlySessionLines();
                         this.earlyHigh = null;
@@ -515,25 +613,17 @@
                         return;
                     }
 
-                    // 确定当前数据覆盖的日期范围
-                    const firstKlineTime = this.klines[0].time * 1000;
-                    const lastKlineTime = this.klines[this.klines.length - 1].time * 1000;
-                    
-                    // 找出所有在0:00-4:00之间的K线
+                    // 筛选凌晨0:00-4:00的K线（按用户选择的时区）
                     const earlySessionKlines = [];
-                    
                     this.klines.forEach(kline => {
                         const date = new Date(kline.time * 1000);
-                        // 转换为用户选择的时区
                         const localTime = new Intl.DateTimeFormat('en-US', {
                             timeZone: this.timezone,
                             hour: '2-digit',
                             minute: '2-digit',
                             hour12: false
                         }).format(date);
-                        
                         const hour = parseInt(localTime.split(':')[0], 10);
-                        // 检查是否在0:00-4:00之间
                         if (hour >= 0 && hour < 4) {
                             earlySessionKlines.push(kline);
                         }
@@ -546,47 +636,42 @@
                         return;
                     }
 
-                    // 计算这段时间的最高和最低价
+                    // 计算高低价
                     this.earlyHigh = Math.max(...earlySessionKlines.map(k => k.high));
                     this.earlyLow = Math.min(...earlySessionKlines.map(k => k.low));
-                    
-                    // 记录时段的起止时间
-                    this.earlySessionStart = Math.min(...earlySessionKlines.map(k => k.time));
-                    this.earlySessionEnd = Math.max(...earlySessionKlines.map(k => k.time));
 
-                    // 绘制水平线
+                    // 绘制高低点线条
                     this.drawEarlySessionLines();
                 },
 
                 /**
-                 * 新增：绘制凌晨时段高低点水平线
+                 * 绘制凌晨时段高低点水平线
                  */
                 drawEarlySessionLines() {
                     // 清除已有线条
                     this.clearEarlySessionLines();
 
-                    // 创建高点线（黄色虚线）
+                    // 创建高点线（自定义颜色+虚线）
                     this.earlyHighLine = this.chart.addSeries(LightweightCharts.LineSeries, {
-                        color: 'rgba(255, 215, 0, 0.7)',  // 金色
+                        color: this.earlyHighRgba,
                         lineWidth: 1.5,
                         lineStyle: LightweightCharts.LineStyle.Dashed,
                         crosshairMarkerVisible: false
                     });
 
-                    // 创建低点线（青色虚线）
+                    // 创建低点线（自定义颜色+虚线）
                     this.earlyLowLine = this.chart.addSeries(LightweightCharts.LineSeries, {
-                        color: 'rgba(0, 255, 255, 0.7)',  // 青色
+                        color: this.earlyLowRgba,
                         lineWidth: 1.5,
                         lineStyle: LightweightCharts.LineStyle.Dashed,
                         crosshairMarkerVisible: false
                     });
 
-                    // 为高点线和低点线设置数据（在整个图表范围内显示）
+                    // 设置线条数据（贯穿整个图表）
                     const highLineData = [
                         { time: this.klines[0].time, value: this.earlyHigh },
                         { time: this.klines[this.klines.length - 1].time, value: this.earlyHigh }
                     ];
-
                     const lowLineData = [
                         { time: this.klines[0].time, value: this.earlyLow },
                         { time: this.klines[this.klines.length - 1].time, value: this.earlyLow }
@@ -597,7 +682,7 @@
                 },
 
                 /**
-                 * 新增：清除凌晨时段高低点线条
+                 * 清除凌晨时段高低点线条
                  */
                 clearEarlySessionLines() {
                     if (this.earlyHighLine) {
@@ -611,22 +696,21 @@
                 },
 
                 /**
-                 * 新增：处理周期变化
+                 * 处理K线周期变化
                  */
                 handleIntervalChange() {
-                    // 当切换到5分钟周期时，重新计算高低点
                     if (this.interval === '5m' && this.klines.length > 0) {
                         this.calculateAndDrawEarlySessionLevels();
                     } else {
-                        // 其他周期清除线条
                         this.clearEarlySessionLines();
                         this.earlyHigh = null;
                         this.earlyLow = null;
                     }
+                    this.saveCache();
                 },
 
                 /**
-                 * 计算EMA
+                 * 计算EMA指标
                  */
                 calcEMA(data, length) {
                     if (!Array.isArray(data) || data.length === 0 || length < 1) return [];
@@ -644,14 +728,16 @@
                 },
 
                 /**
-                 * 更新指标
+                 * 更新所有技术指标（EMA）
                  */
                 updateIndicators() {
                     if (!this.chart) return;
 
+                    // 清除原有EMA系列
                     this.emaSeries.forEach(s => this.chart.removeSeries(s));
                     this.emaSeries = [];
 
+                    // 重新添加EMA系列（使用自定义颜色+透明度）
                     this.emas.forEach(ema => {
                         if (!ema.length || !ema.color) return;
                         const lineSeries = this.chart.addSeries(LightweightCharts.LineSeries, {
@@ -662,7 +748,7 @@
                         this.emaSeries.push(lineSeries);
                     });
 
-                    // 重新绘制凌晨时段线条（防止被EMA线条覆盖）
+                    // 重新绘制凌晨时段线条（防止被EMA覆盖）
                     if (this.interval === '5m' && this.earlyHigh && this.earlyLow) {
                         this.drawEarlySessionLines();
                     }
@@ -671,67 +757,120 @@
                 },
 
                 /**
-                 * 添加EMA
+                 * 添加新的EMA指标（带默认颜色+透明度）
                  */
                 addEma() {
                     this.emas.push({
                         id: Date.now(),
                         length: 20,
-                        color: 'rgba(255,255,0,0.8)'
+                        colorHex: '#ffff00', // 黄色默认
+                        opacity: 0.8,
+                        color: 'rgba(255, 255, 0, 0.8)' // 默认RGBA
                     });
                     this.updateIndicators();
+                    this.saveCache();
                 },
 
                 /**
-                 * 删除EMA
+                 * 删除指定EMA指标
                  */
                 removeEma(i) {
                     this.emas.splice(i, 1);
                     this.updateIndicators();
+                    this.saveCache();
                 },
 
                 /**
-                 * 填充当日时间
+                 * 填充当日时间范围
                  */
                 fillDay() {
                     if (!this.selectedDate) return;
                     this.startTime = `${this.selectedDate}T00:00`;
                     this.endTime = `${this.selectedDate}T23:59`;
+                    this.saveCache();
                 },
 
                 /**
-                 * 保存缓存
+                 * 保存完整缓存（包含所有配置：核心参数、EMA列表、凌晨时段颜色+透明度）
                  */
                 saveCache() {
                     try {
-                        localStorage.setItem('kline_cfg', JSON.stringify({
+                        const cacheData = {
+                            // 核心参数
                             symbol: this.symbol,
                             interval: this.interval,
                             timezone: this.timezone,
                             startTime: this.startTime,
                             endTime: this.endTime,
                             selectedDate: this.selectedDate,
-                            emas: this.emas
-                        }));
+
+                            // 凌晨时段高低点配置（完整保留颜色+透明度）
+                            earlyHighColorHex: this.earlyHighColorHex,
+                            earlyHighOpacity: this.earlyHighOpacity,
+                            earlyLowColorHex: this.earlyLowColorHex,
+                            earlyLowOpacity: this.earlyLowOpacity,
+
+                            // EMA列表（完整保留每个EMA的所有属性）
+                            emas: this.emas.map(ema => ({
+                                id: ema.id,
+                                length: ema.length,
+                                colorHex: ema.colorHex,
+                                opacity: ema.opacity,
+                                color: ema.color
+                            }))
+                        };
+                        localStorage.setItem('kline_cfg_complete', JSON.stringify(cacheData));
                     } catch (e) {
                         console.warn('保存缓存失败：', e);
                     }
                 },
 
                 /**
-                 * 加载缓存
+                 * 加载完整缓存（恢复所有配置，无丢失）
                  */
                 loadCache() {
                     try {
-                        const cache = localStorage.getItem('kline_cfg');
-                        if (cache) Object.assign(this, JSON.parse(cache));
+                        const cache = localStorage.getItem('kline_cfg_complete');
+                        if (!cache) return;
+
+                        const cacheData = JSON.parse(cache);
+                        // 恢复核心参数
+                        this.symbol = cacheData.symbol || this.symbol;
+                        this.interval = cacheData.interval || this.interval;
+                        this.timezone = cacheData.timezone || this.timezone;
+                        this.startTime = cacheData.startTime || this.startTime;
+                        this.endTime = cacheData.endTime || this.endTime;
+                        this.selectedDate = cacheData.selectedDate || this.selectedDate;
+
+                        // 恢复凌晨时段高低点配置
+                        this.earlyHighColorHex = cacheData.earlyHighColorHex || this.earlyHighColorHex;
+                        this.earlyHighOpacity = cacheData.earlyHighOpacity || this.earlyHighOpacity;
+                        this.earlyLowColorHex = cacheData.earlyLowColorHex || this.earlyLowColorHex;
+                        this.earlyLowOpacity = cacheData.earlyLowOpacity || this.earlyLowOpacity;
+
+                        // 恢复EMA列表（完整保留每个EMA的属性）
+                        this.emas = cacheData.emas && Array.isArray(cacheData.emas)
+                            ? cacheData.emas.map(ema => ({
+                                id: ema.id || Date.now(),
+                                length: ema.length || 20,
+                                colorHex: ema.colorHex || '#ffff00',
+                                opacity: ema.opacity || 0.8,
+                                color: ema.color || 'rgba(255, 255, 0, 0.8)'
+                            }))
+                            : [];
+
+                        // 同步更新RGBA值
+                        this.updateEarlyHighRgba();
+                        this.updateEarlyLowRgba();
+                        this.emas.forEach(ema => this.updateEmaRgba(ema));
+
                     } catch (e) {
                         console.warn('加载缓存失败：', e);
                     }
                 },
 
                 /**
-                 * 窗口大小变化
+                 * 处理窗口大小变化
                  */
                 handleWindowResize() {
                     if (!this.chart || !this.$refs.chartEl) return;
