@@ -237,9 +237,9 @@
             mounted() {
                 this.initChart();
                 this.loadCache();
-                this.setDefaultTodayTime(); // 初始化默认时间
-                this.updateChartTimeFormatter(); // 初始化时间格式化器
-                this.updateIndicators(); // 初始化EMA指标
+                this.setDefaultTodayTime();
+                this.updateChartTimeFormatter();
+                this.updateIndicators();
 
                 // 窗口大小变化监听
                 window.addEventListener('resize', this.handleWindowResize);
@@ -252,14 +252,16 @@
 
             methods: {
                 /**
-                 * 核心：统一时间格式化方法（将秒级UTC时间戳转为选中时区的格式化字符串）
-                 * 兼顾图表x轴渲染和时间展示，删除冗余的时间转换方法
+                 * 核心1：图表渲染专用 - 将秒级UTC时间戳转为「选中时区」的本地格式化时间
+                 * 保证图表刻度尺显示的是选中时区的时间（如纽约时间26日00:00-23:59）
                  * @param {number} utcTimestamp - 秒级UTC时间戳（Lightweight Charts 传入）
-                 * @returns {string} 格式化后的本地时间字符串
+                 * @returns {string} 格式化后的选中时区本地时间字符串
                  */
-                formatTimeToSelectedTimezone(utcTimestamp) {
+                formatUtcToSelectedTimezone(utcTimestamp) {
                     if (!utcTimestamp) return '';
-                    const date = new Date(utcTimestamp * 1000); // 转为毫秒级适配JS Date
+                    // 转为毫秒级适配JavaScript Date对象
+                    const date = new Date(utcTimestamp * 1000);
+                    // 强制使用选中的时区进行格式化，保证显示一致
                     return new Intl.DateTimeFormat('zh-CN', {
                         timeZone: this.timezone,
                         year: 'numeric',
@@ -272,66 +274,109 @@
                 },
 
                 /**
-                 * 简化：本地时间（datetime-local）转为UTC毫秒级时间戳（用于接口请求）
-                 * @param {string} localDateTime - 格式：YYYY-MM-DDTHH:mm
+                 * 核心2：接口请求专用 - 将「选中时区的本地时间」准确转为UTC毫秒级时间戳
+                 * 例如：纽约时区2025-12-26T00:00 → 对应的UTC时间戳（后台需要的UTC时间范围）
+                 * @param {string} localDateTime - 选中时区的本地时间（格式：YYYY-MM-DDTHH:mm）
                  * @returns {number|null} UTC毫秒级时间戳，失败返回null
                  */
-                convertLocalTimeToUtcMs(localDateTime) {
+                convertSelectedTimezoneLocalToUtcMs(localDateTime) {
                     if (!localDateTime) return null;
+
                     try {
+                        // 步骤1：拆分本地时间的日期和时间部分
                         const [datePart, timePart] = localDateTime.split('T');
-                        if (!datePart || !timePart) throw new Error('时间格式错误');
-                        
+                        if (!datePart || !timePart) throw new Error('时间格式错误，缺少T分隔符');
+
                         const [year, month, day] = datePart.split('-').map(Number);
                         const [hour, minute] = timePart.split(':').map(Number);
-                        const dateObj = new Date(Date.UTC(year, month - 1, day, hour, minute));
-                        
-                        return isNaN(dateObj.getTime()) ? null : dateObj.getTime();
+                        if (isNaN(year) || isNaN(month) || isNaN(day) || isNaN(hour) || isNaN(minute)) {
+                            throw new Error('时间字段包含非数字值');
+                        }
+                        console.log(`时间：${year}年${month}月${day}日 ${hour}时${minute}分， 时区：${this.timezone}`)
+                        // 步骤2：创建「选中时区」的本地日期对象（关键：先构造本地时间，再转UTC）
+                        // 利用Intl.DateTimeFormat解析指定时区，确保日期对象与选中时区绑定
+                        const timezoneFormatter = new Intl.DateTimeFormat('en-US', {
+                            timeZone: this.timezone,
+                            year: 'numeric',
+                            month: '2-digit',
+                            day: '2-digit',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            hour12: false
+                        });
+
+                        // 构造该时区的本地时间字符串，用于解析
+                        const localTimeStr = `${month}/${day}/${year} ${hour}:${minute}`;
+                        const parts = timezoneFormatter.formatToParts(new Date(localTimeStr));
+
+                        // 提取解析后的有效时间字段
+                        const parsedYear = parseInt(parts.find(p => p.type === 'year').value);
+                        const parsedMonth = parseInt(parts.find(p => p.type === 'month').value) - 1; // 月份0开始
+                        const parsedDay = parseInt(parts.find(p => p.type === 'day').value);
+                        const parsedHour = parseInt(parts.find(p => p.type === 'hour').value);
+                        const parsedMinute = parseInt(parts.find(p => p.type === 'minute').value);
+
+                        // 步骤3：创建日期对象并转为UTC毫秒级时间戳（关键：获取该本地时间对应的UTC时间）
+                        const localDateObj = new Date(
+                            parsedYear,
+                            parsedMonth,
+                            parsedDay,
+                            parsedHour,
+                            parsedMinute
+                        );
+                        const utcTimestampMs = localDateObj.getTime();
+
+                        // 验证日期有效性
+                        if (isNaN(utcTimestampMs)) throw new Error('无效的日期时间');
+
+                        return utcTimestampMs;
                     } catch (error) {
-                        console.error('本地时间转UTC失败：', error);
+                        console.error('选中时区本地时间转UTC失败：', error);
                         return null;
                     }
                 },
 
                 /**
-                 * 优化：更新图表时间格式化器（切换时区时仅更新显示格式，不修改已有数据/时间轴）
-                 * 核心需求：切换时区后，已有图表时间轴不变，仅请求新数据后更新
+                 * 仅更新图表时间显示格式（切换时区时调用，不改动已有数据和时间轴）
+                 * 满足：切换时区后，已有图表时间轴位置不变，仅刻度尺显示为新时区格式
                  */
                 updateChartTimeFormatter() {
                     if (!this.chart) return;
-                    // 仅更新时间刻度的格式化逻辑，不重新设置数据、不改变图表布局
+                    // 仅更新时间刻度的格式化逻辑，不重新设置K线数据，不改变图表布局
                     this.chart.timeScale().applyOptions({
-                        tickMarkFormatter: (utcTimestamp) => this.formatTimeToSelectedTimezone(utcTimestamp)
+                        tickMarkFormatter: (utcTimestamp) => this.formatUtcToSelectedTimezone(utcTimestamp)
                     });
                 },
 
                 /**
-                 * 简化：初始化选中时区当天的默认时间范围
+                 * 初始化「选中时区」当天的默认本地时间范围
+                 * 保证默认时间也是对应时区的本地时间（如纽约时区的当天00:00-23:59）
                  */
                 setDefaultTodayTime() {
                     if (this.startTime && this.endTime) return; // 保留缓存优先级，不覆盖已有值
-                    
+
                     const now = new Date();
-                    const dateFormatter = new Intl.DateTimeFormat('en-US', {
+                    const timezoneDateFormatter = new Intl.DateTimeFormat('en-US', {
                         timeZone: this.timezone,
                         year: 'numeric',
                         month: '2-digit',
                         day: '2-digit'
                     });
-                    const parts = dateFormatter.formatToParts(now);
+                    const parts = timezoneDateFormatter.formatToParts(now);
+
                     const year = parts.find(p => p.type === 'year').value;
                     const month = parts.find(p => p.type === 'month').value;
                     const day = parts.find(p => p.type === 'day').value;
-                    const today = `${year}-${month}-${day}`;
+                    const todayLocalDate = `${year}-${month}-${day}`;
 
-                    // 赋值默认时间范围
-                    this.selectedDate = this.selectedDate || today;
-                    this.startTime = this.startTime || `${today}T00:00`;
-                    this.endTime = this.endTime || `${today}T23:59`;
+                    // 赋值该时区的本地默认时间范围
+                    this.selectedDate = this.selectedDate || todayLocalDate;
+                    this.startTime = this.startTime || `${todayLocalDate}T00:00`;
+                    this.endTime = this.endTime || `${todayLocalDate}T23:59`;
                 },
 
                 /**
-                 * 初始化图表（简化配置，移除冗余预留项）
+                 * 初始化图表（简化配置，保证基础样式）
                  */
                 initChart() {
                     if (!this.$refs.chartEl) return;
@@ -354,43 +399,46 @@
                 },
 
                 /**
-                 * 核心：加载K线数据（请求新数据后，才更新图表时间轴和内容）
+                 * 核心：加载K线数据（准确映射选中时区时间范围→UTC请求→图表渲染选中时区）
                  */
                 async loadKlines() {
                     if (!this.symbol || !this.startTime || !this.endTime) {
                         alert('请填写完整的合约Symbol和时间范围！');
                         return;
                     }
+                    console.log(`time range: ${this.startTime} ~ ${this.endTime}`)
+                    // 关键：将「选中时区的本地时间范围」转为后台需要的UTC毫秒级时间戳
+                    const startUtcMs = this.convertSelectedTimezoneLocalToUtcMs(this.startTime);
+                    const endUtcMs = this.convertSelectedTimezoneLocalToUtcMs(this.endTime);
 
-                    // 转换本地时间为UTC时间戳（用于接口请求）
-                    const startTs = this.convertLocalTimeToUtcMs(this.startTime);
-                    const endTs = this.convertLocalTimeToUtcMs(this.endTime);
-
-                    if (!startTs || !endTs || startTs > endTs) {
-                        alert('时间格式无效或开始时间晚于结束时间，请检查！');
+                    // 验证转换结果
+                    if (!startUtcMs || !endUtcMs) {
+                        alert('时间格式无效，请检查输入！');
+                        return;
+                    }
+                    if (startUtcMs > endUtcMs) {
+                        alert('开始时间不能晚于结束时间！');
                         return;
                     }
 
-                    // 构造接口请求地址
-                    const url = `http://127.0.0.1:8001/api/klines?symbol=${this.symbol}&interval=${this.interval}&start=${startTs}&end=${endTs}`;
+                    // 构造接口请求地址（携带UTC时间戳，满足后台要求）
+                    const url = `http://127.0.0.1:8001/api/klines?symbol=${this.symbol}&interval=${this.interval}&start=${startUtcMs}&end=${endUtcMs}`;
 
                     try {
                         const res = await fetch(url);
                         if (!res.ok) throw new Error(`请求失败：${res.status} ${res.statusText}`);
                         const data = await res.json();
 
-                        console.log(JSON.stringify(data));
-
-                        // 格式化K线数据（适配Lightweight Charts）
+                        // 格式化K线数据（适配Lightweight Charts，毫秒转秒级UTC时间戳）
                         this.klines = data.map(k => ({
-                            time: Math.floor(k.time / 1000), // 毫秒转秒级时间戳
+                            time: Math.floor(k.time / 1000), // 后台返回UTC毫秒级→转秒级供图表使用
                             open: +k.open,
                             high: +k.high,
                             low: +k.low,
                             close: +k.close
                         }));
 
-                        // 仅在请求新数据后，更新图表内容和时间轴
+                        // 仅在请求新数据后，更新图表内容和时间轴（同步选中时区显示格式）
                         this.candleSeries.setData(this.klines);
                         this.chart.timeScale().fitContent(); // 自动适配内容
                         this.updateIndicators(); // 更新EMA指标
@@ -465,7 +513,7 @@
                 },
 
                 /**
-                 * 快速填充当日时间范围
+                 * 快速填充「选中时区」的当日本地时间范围
                  */
                 fillDay() {
                     if (!this.selectedDate) return;
@@ -516,4 +564,5 @@
         }).mount('#app');
     </script>
 </body>
+
 </html>
