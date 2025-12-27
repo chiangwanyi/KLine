@@ -146,7 +146,7 @@
 
             .left {
                 width: 100%;
-                height: 40vh; /* 修复笔误：xian40vh → 40vh */
+                height: 40vh;
                 border-right: none;
                 border-bottom: 1px solid #1e293b;
             }
@@ -223,6 +223,7 @@
                     emaSeries: [],
                     klines: [],
 
+                    // 核心配置项
                     symbol: 'BTCUSDT',
                     interval: '1m',
                     timezone: 'UTC',
@@ -234,35 +235,32 @@
             },
 
             mounted() {
-                this.initChart()
-                this.loadCache()
-                this.updateIndicators()
-                // 初始化默认时间（基于当前选中时区）
-                this.setDefaultTodayTime()
-                // 初始化图表时间格式化器
-                this.updateChartTimeFormatter()
-                
-                // 新增：窗口大小变化监听
+                this.initChart();
+                this.loadCache();
+                this.setDefaultTodayTime(); // 初始化默认时间
+                this.updateChartTimeFormatter(); // 初始化时间格式化器
+                this.updateIndicators(); // 初始化EMA指标
+
+                // 窗口大小变化监听
                 window.addEventListener('resize', this.handleWindowResize);
             },
 
-            beforeUnmount() {
-                // 新增：销毁窗口监听，防止内存泄漏
+            unmounted() {
+                // 移除窗口监听，防止内存泄漏
                 window.removeEventListener('resize', this.handleWindowResize);
             },
 
             methods: {
                 /**
-                 * 工具方法：将UTC时间戳（秒级）格式化为选中时区的本地时间
+                 * 核心：统一时间格式化方法（将秒级UTC时间戳转为选中时区的格式化字符串）
+                 * 兼顾图表x轴渲染和时间展示，删除冗余的时间转换方法
                  * @param {number} utcTimestamp - 秒级UTC时间戳（Lightweight Charts 传入）
                  * @returns {string} 格式化后的本地时间字符串
                  */
-                formatTimezoneDate(utcTimestamp) {
+                formatTimeToSelectedTimezone(utcTimestamp) {
                     if (!utcTimestamp) return '';
-                    // 转换为毫秒级时间戳（JavaScript Date 要求）
-                    const date = new Date(utcTimestamp * 1000);
-                    // 利用Intl.DateTimeFormat实现跨时区格式化
-                    const formatter = new Intl.DateTimeFormat('zh-CN', {
+                    const date = new Date(utcTimestamp * 1000); // 转为毫秒级适配JS Date
+                    return new Intl.DateTimeFormat('zh-CN', {
                         timeZone: this.timezone,
                         year: 'numeric',
                         month: '2-digit',
@@ -270,52 +268,25 @@
                         hour: '2-digit',
                         minute: '2-digit',
                         second: '2-digit'
-                    });
-                    return formatter.format(date);
+                    }).format(date);
                 },
 
                 /**
-                 * 工具方法：将选中时区的本地时间转换为UTC时间戳（毫秒）
-                 * @param {string} localDateTime - 本地时间字符串（格式：YYYY-MM-DDTHH:mm）
+                 * 简化：本地时间（datetime-local）转为UTC毫秒级时间戳（用于接口请求）
+                 * @param {string} localDateTime - 格式：YYYY-MM-DDTHH:mm
                  * @returns {number|null} UTC毫秒级时间戳，失败返回null
                  */
-                localTimeToUtcTimestamp(localDateTime) {
+                convertLocalTimeToUtcMs(localDateTime) {
                     if (!localDateTime) return null;
                     try {
-                        // 拆分日期和时间部分
                         const [datePart, timePart] = localDateTime.split('T');
                         if (!datePart || !timePart) throw new Error('时间格式错误');
                         
                         const [year, month, day] = datePart.split('-').map(Number);
                         const [hour, minute] = timePart.split(':').map(Number);
+                        const dateObj = new Date(Date.UTC(year, month - 1, day, hour, minute));
                         
-                        // 利用Intl.DateTimeFormat解析指定时区的时间，转换为UTC时间戳
-                        const formatter = new Intl.DateTimeFormat('en-US', {
-                            timeZone: this.timezone,
-                            year: 'numeric',
-                            month: '2-digit',
-                            day: '2-digit',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                            second: '2-digit',
-                            hour12: false
-                        });
-                        
-                        const parts = formatter.formatToParts(new Date(year, month - 1, day, hour, minute));
-                        const dateObj = new Date(
-                            parts.find(p => p.type === 'year').value,
-                            parts.find(p => p.type === 'month').value - 1,
-                            parts.find(p => p.type === 'day').value,
-                            parts.find(p => p.type === 'hour').value,
-                            parts.find(p => p.type === 'minute').value,
-                            parts.find(p => p.type === 'second')?.value || 0
-                        );
-                        
-                        // 验证日期有效性
-                        if (isNaN(dateObj.getTime())) throw new Error('无效日期');
-                        
-                        // 返回UTC毫秒级时间戳
-                        return dateObj.getTime();
+                        return isNaN(dateObj.getTime()) ? null : dateObj.getTime();
                     } catch (error) {
                         console.error('本地时间转UTC失败：', error);
                         return null;
@@ -323,200 +294,159 @@
                 },
 
                 /**
-                 * 更新图表时间格式化器（时区切换时调用）
+                 * 优化：更新图表时间格式化器（切换时区时仅更新显示格式，不修改已有数据/时间轴）
+                 * 核心需求：切换时区后，已有图表时间轴不变，仅请求新数据后更新
                  */
                 updateChartTimeFormatter() {
                     if (!this.chart) return;
-                    // 自定义timeScale的tickMarkFormatter，同步选中时区
+                    // 仅更新时间刻度的格式化逻辑，不重新设置数据、不改变图表布局
                     this.chart.timeScale().applyOptions({
-                        tickMarkFormatter: (utcTimestamp) => {
-                            return this.formatTimezoneDate(utcTimestamp);
-                        }
+                        tickMarkFormatter: (utcTimestamp) => this.formatTimeToSelectedTimezone(utcTimestamp)
                     });
-                    // 重新渲染图表，确保时间轴立即更新
-                    if (this.klines.length > 0) {
-                        this.candleSeries.setData(this.klines);
-                        // 时区切换后也保持图表居中
-                        this.chart.timeScale().fitContent();
-                    }
                 },
 
-                // 核心方法 - 设置选中时区今天的默认时间
+                /**
+                 * 简化：初始化选中时区当天的默认时间范围
+                 */
                 setDefaultTodayTime() {
-                    // 若已有缓存的时间/日期，直接返回（不覆盖缓存）
-                    if (this.startTime && this.endTime && this.selectedDate) return;
-
-                    // 1. 获取选中时区的当前日期
+                    if (this.startTime && this.endTime) return; // 保留缓存优先级，不覆盖已有值
+                    
                     const now = new Date();
-                    const formatter = new Intl.DateTimeFormat('en-US', {
+                    const dateFormatter = new Intl.DateTimeFormat('en-US', {
                         timeZone: this.timezone,
                         year: 'numeric',
                         month: '2-digit',
                         day: '2-digit'
                     });
-                    const parts = formatter.formatToParts(now);
+                    const parts = dateFormatter.formatToParts(now);
                     const year = parts.find(p => p.type === 'year').value;
                     const month = parts.find(p => p.type === 'month').value;
                     const day = parts.find(p => p.type === 'day').value;
-                    const todayDate = `${year}-${month}-${day}`;
+                    const today = `${year}-${month}-${day}`;
 
-                    // 2. 格式化时间为 YYYY-MM-DDTHH:mm（适配 datetime-local 输入框）
-                    const defaultStartTime = `${todayDate}T00:00`;
-                    const defaultEndTime = `${todayDate}T23:59`;
-
-                    // 3. 赋值给响应式变量（仅当无值时赋值，保留缓存优先级）
-                    if (!this.selectedDate) this.selectedDate = todayDate;
-                    if (!this.startTime) this.startTime = defaultStartTime;
-                    if (!this.endTime) this.endTime = defaultEndTime;
+                    // 赋值默认时间范围
+                    this.selectedDate = this.selectedDate || today;
+                    this.startTime = this.startTime || `${today}T00:00`;
+                    this.endTime = this.endTime || `${today}T23:59`;
                 },
 
+                /**
+                 * 初始化图表（简化配置，移除冗余预留项）
+                 */
                 initChart() {
                     if (!this.$refs.chartEl) return;
 
                     this.chart = LightweightCharts.createChart(this.$refs.chartEl, {
-                        layout: {
-                            background: { color: '#020617' },
-                            textColor: '#cbd5f5'
-                        },
-                        grid: {
-                            vertLines: { color: '#1e293b' },
-                            horzLines: { color: '#1e293b' }
-                        },
-                        timeScale: {
-                            timeVisible: true,
-                            secondsVisible: false,
-                            // 预留格式化器接口，后续由updateChartTimeFormatter初始化
-                            tickMarkFormatter: () => ''
-                        },
+                        layout: { background: { color: '#020617' }, textColor: '#cbd5f5' },
+                        grid: { vertLines: { color: '#1e293b' }, horzLines: { color: '#1e293b' } },
+                        timeScale: { timeVisible: true, secondsVisible: false },
                         height: this.$refs.chartEl.clientHeight
-                    })
+                    });
 
-                    this.candleSeries = this.chart.addSeries(
-                        LightweightCharts.CandlestickSeries,
-                        {
-                            upColor: '#22c55e',
-                            downColor: '#ef4444',
-                            borderUpColor: '#22c55e',
-                            borderDownColor: '#ef4444',
-                            wickUpColor: '#22c55e',
-                            wickDownColor: '#ef4444'
-                        }
-                    )
+                    this.candleSeries = this.chart.addSeries(LightweightCharts.CandlestickSeries, {
+                        upColor: '#22c55e',
+                        downColor: '#ef4444',
+                        borderUpColor: '#22c55e',
+                        borderDownColor: '#ef4444',
+                        wickUpColor: '#22c55e',
+                        wickDownColor: '#ef4444'
+                    });
                 },
 
+                /**
+                 * 核心：加载K线数据（请求新数据后，才更新图表时间轴和内容）
+                 */
                 async loadKlines() {
                     if (!this.symbol || !this.startTime || !this.endTime) {
                         alert('请填写完整的合约Symbol和时间范围！');
                         return;
                     }
 
-                    // 关键修改：使用工具方法将选中时区的本地时间转为UTC时间戳
-                    const startTs = this.localTimeToUtcTimestamp(this.startTime);
-                    const endTs = this.localTimeToUtcTimestamp(this.endTime);
+                    // 转换本地时间为UTC时间戳（用于接口请求）
+                    const startTs = this.convertLocalTimeToUtcMs(this.startTime);
+                    const endTs = this.convertLocalTimeToUtcMs(this.endTime);
 
-                    // 验证时间转换结果
-                    if (!startTs || !endTs) {
-                        alert('时间格式无效，请检查输入！');
+                    if (!startTs || !endTs || startTs > endTs) {
+                        alert('时间格式无效或开始时间晚于结束时间，请检查！');
                         return;
                     }
 
-                    if (startTs > endTs) {
-                        alert('开始时间不能晚于结束时间！');
-                        return;
-                    }
-
-                    const url = `http://127.0.0.1:8001/api/klines`
-                        + `?symbol=${this.symbol}`
-                        + `&interval=${this.interval}`
-                        + `&start=${startTs}`
-                        + `&end=${endTs}`;
+                    // 构造接口请求地址
+                    const url = `http://127.0.0.1:8001/api/klines?symbol=${this.symbol}&interval=${this.interval}&start=${startTs}&end=${endTs}`;
 
                     try {
                         const res = await fetch(url);
-                        if (!res.ok) {
-                            throw new Error(`请求失败：${res.status} ${res.statusText}`);
-                        }
+                        if (!res.ok) throw new Error(`请求失败：${res.status} ${res.statusText}`);
                         const data = await res.json();
 
-                        // 控制台打印data文本
                         console.log(JSON.stringify(data));
 
+                        // 格式化K线数据（适配Lightweight Charts）
                         this.klines = data.map(k => ({
-                            // 毫秒级时间戳转换为秒级（Lightweight Charts 要求）
-                            time: Math.floor(k.time / 1000),
-                            // 直接访问对象属性，+ 号确保转为数字类型（兼容字符串格式返回值）
+                            time: Math.floor(k.time / 1000), // 毫秒转秒级时间戳
                             open: +k.open,
                             high: +k.high,
                             low: +k.low,
                             close: +k.close
                         }));
 
-                        // 1. 渲染K线数据
+                        // 仅在请求新数据后，更新图表内容和时间轴
                         this.candleSeries.setData(this.klines);
-                        // 2. 关键修复：调用fitContent()让图表数据自动居中、完整显示
-                        this.chart.timeScale().fitContent();
-                        // 3. 更新技术指标
-                        this.updateIndicators();
-                        this.saveCache();
+                        this.chart.timeScale().fitContent(); // 自动适配内容
+                        this.updateIndicators(); // 更新EMA指标
+                        this.saveCache(); // 保存最新配置
                     } catch (error) {
                         console.error('加载K线数据失败：', error);
                         alert('加载K线数据失败，请检查接口是否可用或控制台查看详情！');
                     }
                 },
 
+                /**
+                 * 简化：计算EMA指标
+                 */
                 calcEMA(data, length) {
-                    if (!Array.isArray(data) || data.length === 0 || !length || length < 1) {
-                        return [];
-                    }
+                    if (!Array.isArray(data) || data.length === 0 || length < 1) return [];
 
                     const result = [];
                     const k = 2 / (length + 1);
-                    let prev;
+                    let prevEma = data[0].close;
 
-                    data.forEach((d, i) => {
-                        if (i === 0) {
-                            prev = d.close;
-                        } else {
-                            prev = d.close * k + prev * (1 - k);
-                        }
-                        result.push({ time: d.time, value: prev });
+                    data.forEach(d => {
+                        prevEma = d.close * k + prevEma * (1 - k);
+                        result.push({ time: d.time, value: prevEma });
                     });
+
                     return result;
                 },
 
+                /**
+                 * 简化：更新EMA指标系列
+                 */
                 updateIndicators() {
                     if (!this.chart) return;
 
-                    this.emaSeries.forEach(s => {
-                        try {
-                            this.chart.removeSeries(s);
-                        } catch (e) {
-                            console.warn('移除EMA系列失败：', e);
-                        }
-                    });
+                    // 移除旧的EMA系列
+                    this.emaSeries.forEach(s => this.chart.removeSeries(s));
                     this.emaSeries = [];
 
-                    this.emas.forEach(e => {
-                        if (!e.length || !e.color) return;
-                        const s = this.chart.addSeries(
-                            LightweightCharts.LineSeries,
-                            {
-                                color: e.color,
-                                lineWidth: 2
-                            }
-                        );
-                        s.setData(this.calcEMA(this.klines, e.length));
-                        this.emaSeries.push(s);
+                    // 添加新的EMA系列
+                    this.emas.forEach(ema => {
+                        if (!ema.length || !ema.color) return;
+                        const lineSeries = this.chart.addSeries(LightweightCharts.LineSeries, {
+                            color: ema.color,
+                            lineWidth: 2
+                        });
+                        lineSeries.setData(this.calcEMA(this.klines, ema.length));
+                        this.emaSeries.push(lineSeries);
                     });
 
-                    // 优化：指标更新后也保持图表居中
-                    if (this.klines.length > 0) {
-                        this.chart.timeScale().fitContent();
-                    }
-
-                    this.saveCache();
+                    // 适配图表内容
+                    if (this.klines.length > 0) this.chart.timeScale().fitContent();
                 },
 
+                /**
+                 * 添加EMA指标
+                 */
                 addEma() {
                     this.emas.push({
                         id: Date.now(),
@@ -526,17 +456,26 @@
                     this.updateIndicators();
                 },
 
+                /**
+                 * 删除EMA指标
+                 */
                 removeEma(i) {
                     this.emas.splice(i, 1);
                     this.updateIndicators();
                 },
 
+                /**
+                 * 快速填充当日时间范围
+                 */
                 fillDay() {
                     if (!this.selectedDate) return;
                     this.startTime = `${this.selectedDate}T00:00`;
                     this.endTime = `${this.selectedDate}T23:59`;
                 },
 
+                /**
+                 * 保存配置缓存到本地存储
+                 */
                 saveCache() {
                     try {
                         localStorage.setItem('kline_cfg', JSON.stringify({
@@ -553,28 +492,25 @@
                     }
                 },
 
+                /**
+                 * 从本地存储加载配置缓存
+                 */
                 loadCache() {
                     try {
-                        const c = localStorage.getItem('kline_cfg');
-                        if (!c) return;
-                        const v = JSON.parse(c);
-                        Object.assign(this, v);
+                        const cache = localStorage.getItem('kline_cfg');
+                        if (cache) Object.assign(this, JSON.parse(cache));
                     } catch (e) {
                         console.warn('加载缓存失败：', e);
                     }
                 },
 
-                // 新增：窗口大小变化处理方法
+                /**
+                 * 窗口大小变化处理
+                 */
                 handleWindowResize() {
                     if (!this.chart || !this.$refs.chartEl) return;
-                    // 更新图表高度
-                    this.chart.applyOptions({
-                        height: this.$refs.chartEl.clientHeight
-                    });
-                    // 保持图表内容居中
-                    if (this.klines.length > 0) {
-                        this.chart.timeScale().fitContent();
-                    }
+                    this.chart.applyOptions({ height: this.$refs.chartEl.clientHeight });
+                    if (this.klines.length > 0) this.chart.timeScale().fitContent();
                 }
             }
         }).mount('#app');
