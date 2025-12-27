@@ -120,9 +120,52 @@
             </div>
             <!-- 合约计算器 -->
             <div class="panel border border-border p-3 rounded bg-secondary/80">
-                <h3 class="text-textHighlight text-sm mb-2 pb-2 border-b border-border">合约计算器</h3>
-                <div class="text-textLight text-xs opacity-60">
-                    后续可加入强平价、盈亏计算等
+                <h3 class="text-textHighlight text-sm mb-2 pb-2 border-b border-border">
+                    合约计算器（模拟）
+                </h3>
+
+                <!-- 方向 -->
+                <div class="mb-2">
+                    <label class="text-textLight text-xs mb-1 block">方向</label>
+                    <select v-model="positionSide"
+                        class="w-full bg-primary text-text border border-border px-2 py-1 rounded text-xs">
+                        <option value="long">开多</option>
+                        <option value="short">开空</option>
+                    </select>
+                </div>
+
+                <!-- 数量 -->
+                <div class="mb-2">
+                    <label class="text-textLight text-xs mb-1 block">数量（BTC）</label>
+                    <input type="number" step="0.0001" v-model.number="simQty" @input="recalcSim"
+                        class="w-full bg-primary text-text border border-border px-2 py-1 rounded text-xs">
+                </div>
+
+                <!-- 杠杆 -->
+                <div class="mb-2">
+                    <label class="text-textLight text-xs mb-1 block">杠杆</label>
+                    <input type="number" min="1" max="100" v-model.number="simLeverage" @input="recalcSim"
+                        class="w-full bg-primary text-text border border-border px-2 py-1 rounded text-xs">
+                </div>
+
+                <!-- 结果 -->
+                <div v-if="simEntryPrice" class="mt-3 pt-2 border-t border-border text-xs">
+                    <div class="flex justify-between mb-1">
+                        <span class="text-textLight">开仓价</span>
+                        <span class="text-textHighlight">{{ simEntryPrice.toFixed(2) }}</span>
+                    </div>
+                    <div class="flex justify-between mb-1">
+                        <span class="text-textLight">保证金</span>
+                        <span class="text-textHighlight">{{ simMargin.toFixed(2) }} USDT</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-textLight">预估强平价</span>
+                        <span class="text-down">{{ simLiqPrice.toFixed(2) }}</span>
+                    </div>
+                </div>
+
+                <div class="text-[11px] text-textLight opacity-60 mt-2">
+                    点击图表中的 K 线 → 使用该 K 线开盘价模拟开仓
                 </div>
             </div>
             <!-- 技术指标 - EMA -->
@@ -293,7 +336,18 @@
                         top: 0,
                         left: 0,
                         opacity: 0
-                    }
+                    },
+
+                    // ===== 合约模拟相关 =====
+                    positionSide: 'long', // long | short
+                    simQty: 0.001,
+                    simLeverage: 10,
+                    simEntryPrice: null,
+                    simMargin: null,
+                    simLiqPrice: null,
+
+                    entryLine: null,
+                    liqLine: null,
                 }
             },
 
@@ -421,6 +475,15 @@
                         borderDownColor: '#ef4444',
                         wickUpColor: '#22c55e',
                         wickDownColor: '#ef4444'
+                    });
+
+                    this.chart.subscribeClick((param) => {
+                        if (!param.time) return;
+                        const k = this.klines.find(k => k.time === param.time);
+                        if (!k) return;
+
+                        this.simEntryPrice = k.open;
+                        this.recalcSim();
                     });
                 },
 
@@ -843,7 +906,65 @@
                     if (!this.chart || !this.$refs.chartEl) return;
                     this.chart.applyOptions({ height: this.$refs.chartEl.clientHeight });
                     if (this.klines.length > 0) this.chart.timeScale().fitContent();
-                }
+                },
+
+                recalcSim() {
+                    if (!this.simEntryPrice || !this.simQty || !this.simLeverage) return;
+
+                    const price = this.simEntryPrice;
+                    const qty = this.simQty;
+                    const lev = this.simLeverage;
+                    const mmr = 0.005;
+
+                    // 保证金
+                    this.simMargin = (price * qty) / lev;
+
+                    // 强平价
+                    if (this.positionSide === 'long') {
+                        this.simLiqPrice =
+                            (price * qty - this.simMargin) /
+                            (qty * (1 - mmr));
+                    } else {
+                        this.simLiqPrice =
+                            (price * qty + this.simMargin) /
+                            (qty * (1 + mmr));
+                    }
+
+                    this.drawSimLines();
+                },
+
+                drawSimLines() {
+                    // 清理旧线
+                    if (this.entryLine) this.chart.removeSeries(this.entryLine);
+                    if (this.liqLine) this.chart.removeSeries(this.liqLine);
+
+                    const start = this.klines[0].time;
+                    const end = this.klines[this.klines.length - 1].time;
+
+                    // 开仓价线
+                    this.entryLine = this.chart.addSeries(LightweightCharts.LineSeries, {
+                        color: '#22c55e',
+                        lineWidth: 2,
+                        crosshairMarkerVisible: false
+                    });
+
+                    this.entryLine.setData([
+                        { time: start, value: this.simEntryPrice },
+                        { time: end, value: this.simEntryPrice }
+                    ]);
+
+                    // 强平价线
+                    this.liqLine = this.chart.addSeries(LightweightCharts.LineSeries, {
+                        color: '#ef4444',
+                        lineWidth: 2,
+                        crosshairMarkerVisible: false
+                    });
+
+                    this.liqLine.setData([
+                        { time: start, value: this.simLiqPrice },
+                        { time: end, value: this.simLiqPrice }
+                    ]);
+                },
             }
         }).mount('#app');
     </script>
