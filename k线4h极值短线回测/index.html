@@ -264,7 +264,8 @@
                     @change="updateEarlyLowRgba" class="opacity-input">
 
                 <!-- 实时显示高低点数值 -->
-                <div v-if="earlyHigh || earlyLow" style="margin-top: 12px; padding-top: 8px; border-top: 1px solid #1e293b;">
+                <div v-if="earlyHigh || earlyLow"
+                    style="margin-top: 12px; padding-top: 8px; border-top: 1px solid #1e293b;">
                     <div class="tooltip-item">
                         <span class="tooltip-label">最高价格</span>
                         <span class="tooltip-value tooltip-up">{{ earlyHigh?.toFixed(4) }}</span>
@@ -459,6 +460,21 @@
                         layout: { background: { color: '#020617' }, textColor: '#cbd5f5' },
                         grid: { vertLines: { color: '#1e293b' }, horzLines: { color: '#1e293b' } },
                         timeScale: { timeVisible: true, secondsVisible: false },
+                        crosshair: {
+                            // 禁用水平价格虚线（横贯图表的那条线）
+                            horzLine: {
+                                // visible: false, // 关键属性：设为 false 隐藏水平价格线
+                                // 补充：即使开启，也可配置样式（此处禁用后无需配置）
+                                color: '#999',
+                                style: LightweightCharts.LineStyle.Dashed,
+                            },
+                            // 可选：保留垂直时间线（不影响用户查看对应时间）
+                            vertLine: {
+                                visible: true,
+                                color: '#666',
+                                style: LightweightCharts.LineStyle.Dashed,
+                            },
+                        },
                         height: this.$refs.chartEl.clientHeight
                     });
 
@@ -655,7 +671,7 @@
                     this.earlyHighLine = this.chart.addSeries(LightweightCharts.LineSeries, {
                         color: this.earlyHighRgba,
                         lineWidth: 1.5,
-                        lineStyle: LightweightCharts.LineStyle.Dashed,
+                        lineStyle: LightweightCharts.LineStyle.Solid,
                         crosshairMarkerVisible: false
                     });
 
@@ -663,7 +679,7 @@
                     this.earlyLowLine = this.chart.addSeries(LightweightCharts.LineSeries, {
                         color: this.earlyLowRgba,
                         lineWidth: 1.5,
-                        lineStyle: LightweightCharts.LineStyle.Dashed,
+                        lineStyle: LightweightCharts.LineStyle.Solid,
                         crosshairMarkerVisible: false
                     });
 
