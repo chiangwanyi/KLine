@@ -117,6 +117,23 @@
             font-size: 12px;
         }
 
+        /* 开关样式 */
+        .toggle-switch {
+            display: flex;
+            align-items: center;
+            margin-top: 8px;
+        }
+        
+        .toggle-switch input {
+            width: auto;
+            margin-right: 6px;
+        }
+        
+        .toggle-switch label {
+            margin: 0;
+            display: inline;
+        }
+
         input:focus,
         select:focus {
             outline: none;
@@ -251,6 +268,10 @@
             <!-- 凌晨时段高低点设置（支持颜色+透明度自定义） -->
             <div class="panel">
                 <h3>凌晨时段(0:00-4:00)高低点设置</h3>
+                <div class="toggle-switch">
+                    <input type="checkbox" id="showEarlyLevels" v-model="showEarlyLevels" @change="toggleEarlyLevels">
+                    <label for="showEarlyLevels">显示高低点线</label>
+                </div>
                 <label>最高价线段颜色</label>
                 <input type="color" v-model="earlyHighColorHex" @change="updateEarlyHighRgba">
                 <label>最高价线段透明度 (0-1)</label>
@@ -281,6 +302,10 @@
             <div class="panel">
                 <h3>技术指标 - EMA</h3>
                 <div v-for="(ema, i) in emas" :key="ema.id" class="ema-row">
+                    <div class="toggle-switch">
+                        <input type="checkbox" :id="'showEma' + ema.id" v-model="ema.show" @change="updateIndicators">
+                        <label :for="'showEma' + ema.id">显示EMA {{ ema.length }}</label>
+                    </div>
                     <label>周期</label>
                     <input type="number" v-model.number="ema.length" @input="updateIndicators" min="1">
                     <label>均线颜色</label>
@@ -364,6 +389,7 @@
                     earlyLowColorHex: '#00ffff', // 青色默认
                     earlyLowOpacity: 0.7,
                     earlyLowRgba: 'rgba(0, 255, 255, 0.7)',
+                    showEarlyLevels: true, // 凌晨时段高低点显示开关
 
                     // EMA配置（每个EMA包含16进制颜色+透明度+RGBA，支持全缓存）
                     emas: [],
@@ -589,7 +615,7 @@
                 updateEarlyHighRgba() {
                     this.earlyHighRgba = this.hexToRgba(this.earlyHighColorHex, this.earlyHighOpacity);
                     // 实时更新图表线条
-                    if (this.earlyHighLine && this.earlyHigh) {
+                    if (this.earlyHighLine && this.earlyHigh && this.showEarlyLevels) {
                         this.earlyHighLine.applyOptions({ color: this.earlyHighRgba });
                         this.saveCache();
                     }
@@ -601,9 +627,20 @@
                 updateEarlyLowRgba() {
                     this.earlyLowRgba = this.hexToRgba(this.earlyLowColorHex, this.earlyLowOpacity);
                     // 实时更新图表线条
-                    if (this.earlyLowLine && this.earlyLow) {
+                    if (this.earlyLowLine && this.earlyLow && this.showEarlyLevels) {
                         this.earlyLowLine.applyOptions({ color: this.earlyLowRgba });
                         this.saveCache();
+                    }
+                },
+
+                /**
+                 * 切换凌晨时段高低点显示状态
+                 */
+                toggleEarlyLevels() {
+                    if (this.showEarlyLevels) {
+                        this.calculateAndDrawEarlySessionLevels();
+                    } else {
+                        this.clearEarlySessionLines();
                     }
                 },
 
@@ -622,7 +659,7 @@
                  */
                 calculateAndDrawEarlySessionLevels() {
                     // 只在5分钟周期下计算
-                    if (this.interval !== '5m' || this.klines.length === 0) {
+                    if (this.interval !== '5m' || this.klines.length === 0 || !this.showEarlyLevels) {
                         this.clearEarlySessionLines();
                         this.earlyHigh = null;
                         this.earlyLow = null;
@@ -664,6 +701,8 @@
                  * 绘制凌晨时段高低点水平线
                  */
                 drawEarlySessionLines() {
+                    if (!this.showEarlyLevels) return;
+                    
                     // 清除已有线条
                     this.clearEarlySessionLines();
 
@@ -715,7 +754,7 @@
                  * 处理K线周期变化
                  */
                 handleIntervalChange() {
-                    if (this.interval === '5m' && this.klines.length > 0) {
+                    if (this.interval === '5m' && this.klines.length > 0 && this.showEarlyLevels) {
                         this.calculateAndDrawEarlySessionLevels();
                     } else {
                         this.clearEarlySessionLines();
@@ -755,7 +794,7 @@
 
                     // 重新添加EMA系列（使用自定义颜色+透明度）
                     this.emas.forEach(ema => {
-                        if (!ema.length || !ema.color) return;
+                        if (!ema.length || !ema.color || !ema.show) return;
                         const lineSeries = this.chart.addSeries(LightweightCharts.LineSeries, {
                             color: ema.color,
                             lineWidth: 2
@@ -765,7 +804,7 @@
                     });
 
                     // 重新绘制凌晨时段线条（防止被EMA覆盖）
-                    if (this.interval === '5m' && this.earlyHigh && this.earlyLow) {
+                    if (this.interval === '5m' && this.earlyHigh && this.earlyLow && this.showEarlyLevels) {
                         this.drawEarlySessionLines();
                     }
 
@@ -781,7 +820,8 @@
                         length: 20,
                         colorHex: '#ffff00', // 黄色默认
                         opacity: 0.8,
-                        color: 'rgba(255, 255, 0, 0.8)' // 默认RGBA
+                        color: 'rgba(255, 255, 0, 0.8)', // 默认RGBA
+                        show: true // 默认显示
                     });
                     this.updateIndicators();
                     this.saveCache();
@@ -871,7 +911,8 @@
                                 length: ema.length || 20,
                                 colorHex: ema.colorHex || '#ffff00',
                                 opacity: ema.opacity || 0.8,
-                                color: ema.color || 'rgba(255, 255, 0, 0.8)'
+                                color: ema.color || 'rgba(255, 255, 0, 0.8)',
+                                show: true // 从缓存加载时默认显示
                             }))
                             : [];
 
