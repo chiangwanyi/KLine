@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>K线 + 技术指标（Vue3 + Lightweight Charts）</title>
 
     <!-- Vue 3 -->
@@ -95,7 +95,6 @@
             padding: 6px 8px;
             border-radius: 3px;
             font-size: 12px;
-            transition: border-color 0.2s ease;
         }
 
         input:focus,
@@ -137,6 +136,44 @@
 
         .small-btn:hover {
             background: #1e293b;
+        }
+
+        /* 新增：K线数据悬浮提示层样式 */
+        .kline-tooltip {
+            position: absolute;
+            z-index: 100;
+            background: #020617;
+            border: 1px solid #334155;
+            border-radius: 4px;
+            padding: 8px 12px;
+            font-size: 12px;
+            color: #e5e7eb;
+            pointer-events: none; /* 防止遮挡光标事件 */
+            opacity: 0;
+            transition: opacity 0.2s ease;
+            min-width: 180px;
+        }
+
+        .kline-tooltip .tooltip-item {
+            display: flex;
+            justify-content: space-between;
+            margin: 4px 0;
+        }
+
+        .kline-tooltip .tooltip-label {
+            color: #94a3b8;
+        }
+
+        .kline-tooltip .tooltip-value {
+            color: #cbd5f5;
+        }
+
+        .kline-tooltip .tooltip-up {
+            color: #22c55e;
+        }
+
+        .kline-tooltip .tooltip-down {
+            color: #ef4444;
         }
 
         @media (max-width: 480px) {
@@ -200,7 +237,7 @@
                 </div>
                 <button @click="addEma">+ 添加 EMA</button>
             </div>
-            <!-- 合约计算器（占位） -->
+            <!-- 合约计算器 -->
             <div class="panel">
                 <h3>合约计算器</h3>
                 <div style="font-size:12px;opacity:.6">
@@ -208,8 +245,33 @@
                 </div>
             </div>
         </div>
-        <!-- 图表区 -->
-        <div class="right" ref="chartEl"></div>
+        <!-- 图表区：新增悬浮提示层 -->
+        <div class="right" ref="chartEl">
+            <div class="kline-tooltip" ref="tooltipEl" :style="{ top: tooltipPos.top + 'px', left: tooltipPos.left + 'px', opacity: tooltipPos.opacity }">
+                <div class="tooltip-item" v-if="currentKline">
+                    <span class="tooltip-label">时间</span>
+                    <span class="tooltip-value">{{ formatUtcToSelectedTimezone(currentKline.time) }}</span>
+                </div>
+                <div class="tooltip-item" v-if="currentKline">
+                    <span class="tooltip-label">开盘</span>
+                    <span class="tooltip-value">{{ currentKline.open.toFixed(4) }}</span>
+                </div>
+                <div class="tooltip-item" v-if="currentKline">
+                    <span class="tooltip-label">最高</span>
+                    <span class="tooltip-value">{{ currentKline.high.toFixed(4) }}</span>
+                </div>
+                <div class="tooltip-item" v-if="currentKline">
+                    <span class="tooltip-label">最低</span>
+                    <span class="tooltip-value">{{ currentKline.low.toFixed(4) }}</span>
+                </div>
+                <div class="tooltip-item" v-if="currentKline">
+                    <span class="tooltip-label">收盘</span>
+                    <span :class="['tooltip-value', currentKline.close >= currentKline.open ? 'tooltip-up' : 'tooltip-down']">
+                        {{ currentKline.close.toFixed(4) }}
+                    </span>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -230,7 +292,15 @@
                     startTime: '',
                     endTime: '',
                     selectedDate: '',
-                    emas: []
+                    emas: [],
+
+                    // 新增：悬浮提示相关数据
+                    currentKline: null, // 当前选中的K线数据
+                    tooltipPos: { // 提示层位置和透明度
+                        top: 0,
+                        left: 0,
+                        opacity: 0
+                    }
                 }
             },
 
@@ -240,6 +310,8 @@
                 this.setDefaultTodayTime();
                 this.updateChartTimeFormatter();
                 this.updateIndicators();
+                // 新增：初始化十字光标监听
+                this.initCrosshairListener();
 
                 // 窗口大小变化监听
                 window.addEventListener('resize', this.handleWindowResize);
@@ -305,7 +377,6 @@
                     const month = parts.find(p => p.type === 'month').value;
                     const day = parts.find(p => p.type === 'day').value;
                     const todayLocalDate = `${year}-${month}-${day}`;
-
                     // 赋值该时区的本地默认时间范围
                     this.selectedDate = this.selectedDate || todayLocalDate;
                     this.startTime = this.startTime || `${todayLocalDate}T00:00`;
@@ -313,7 +384,7 @@
                 },
 
                 /**
-                 * 初始化图表（简化配置，保证基础样式）
+                 * 初始化图表
                  */
                 initChart() {
                     if (!this.$refs.chartEl) return;
@@ -332,6 +403,44 @@
                         borderDownColor: '#ef4444',
                         wickUpColor: '#22c55e',
                         wickDownColor: '#ef4444'
+                    });
+                },
+
+                /**
+                 * 新增：初始化十字光标移动监听，实现K线数据悬浮显示
+                 */
+                initCrosshairListener() {
+                    if (!this.chart || !this.candleSeries) return;
+
+                    // 核心API：subscribeCrosshairMove 监听十字光标移动事件
+                    this.chart.subscribeCrosshairMove((param) => {
+                        // 1. 从当前光标位置获取K线数据（通过candleSeries的dataAtIndex方法）
+                        const point = param.point;
+                        if (!point || !param.time) {
+                            // 光标离开图表区域，隐藏提示层
+                            this.currentKline = null;
+                            this.tooltipPos.opacity = 0;
+                            return;
+                        }
+
+                        // 2. 匹配当前时间对应的K线数据
+                        const currentKline = this.klines.find(k => k.time === param.time);
+                        if (!currentKline) {
+                            this.currentKline = null;
+                            this.tooltipPos.opacity = 0;
+                            return;
+                        }
+
+                        // 3. 更新当前K线数据
+                        this.currentKline = currentKline;
+
+                        // 4. 计算提示层位置（偏移光标位置，防止遮挡）
+                        const chartRect = this.$refs.chartEl.getBoundingClientRect();
+                        this.tooltipPos = {
+                            top: point.y + chartRect.top + 10, // 向下偏移10px
+                            left: point.x + chartRect.left + 10, // 向右偏移10px
+                            opacity: 1 // 显示提示层
+                        };
                     });
                 },
 
@@ -355,9 +464,9 @@
                         const res = await fetch(url);
                         if (!res.ok) throw new Error(`请求失败：${res.status} ${res.statusText}`);
                         const data = await res.json();
-                        // 格式化K线数据（适配Lightweight Charts，毫秒转秒级UTC时间戳）
+                        // 后台返回UTC毫秒级→转秒级供图表使用
                         this.klines = data.map(k => ({
-                            time: Math.floor(k.time / 1000), // 后台返回UTC毫秒级→转秒级供图表使用
+                            time: Math.floor(k.time / 1000),
                             open: +k.open,
                             high: +k.high,
                             low: +k.low,
@@ -403,7 +512,6 @@
                     this.emaSeries.forEach(s => this.chart.removeSeries(s));
                     this.emaSeries = [];
 
-                    // 添加新的EMA系列
                     this.emas.forEach(ema => {
                         if (!ema.length || !ema.color) return;
                         const lineSeries = this.chart.addSeries(LightweightCharts.LineSeries, {
