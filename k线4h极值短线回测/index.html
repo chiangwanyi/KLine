@@ -147,7 +147,21 @@
                     <input type="number" min="1" max="100" v-model.number="simLeverage" @input="recalcSim"
                         class="w-full bg-primary text-text border border-border px-2 py-1 rounded text-xs">
                 </div>
-
+                <div class="mb-2">
+                    <label class="text-textLight text-xs mb-1 block">止损价</label>
+                    <input type="number" v-model.number="simStopPrice" @input="recalcTPByRR"
+                        class="w-full bg-primary text-text border border-border px-2 py-1 rounded text-xs">
+                </div>
+                <div class="mb-2">
+                    <label class="text-textLight text-xs mb-1 block">盈亏比</label>
+                    <input type="number" step="0.1" v-model.number="simRR" @input="recalcTPByRR"
+                        class="w-full bg-primary text-text border border-border px-2 py-1 rounded text-xs">
+                </div>
+                <div class="mb-2">
+                    <label class="text-textLight text-xs mb-1 block">止盈价</label>
+                    <input type="number" v-model.number="simTakePrice" @input="recalcPnL"
+                        class="w-full bg-primary text-text border border-border px-2 py-1 rounded text-xs">
+                </div>
                 <!-- 结果 -->
                 <div v-if="simEntryPrice" class="mt-3 pt-2 border-t border-border text-xs">
                     <div class="flex justify-between mb-1">
@@ -162,6 +176,25 @@
                         <span class="text-textLight">预估强平价</span>
                         <span class="text-down">{{ simLiqPrice.toFixed(2) }}</span>
                     </div>
+                    <div class="mt-2 pt-2 border-t border-border">
+                        <div class="flex justify-between">
+                            <span class="text-textLight">止盈净盈利</span>
+                            <span class="text-up">
+                                {{ simPnLTPNet?.toFixed(4) }} USDT
+                            </span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-textLight">止损净亏损</span>
+                            <span class="text-down">
+                                {{ simPnLSLNet?.toFixed(4) }} USDT
+                            </span>
+                        </div>
+                        <div class="flex justify-between text-[11px] opacity-70">
+                            <span>手续费</span>
+                            <span>{{ simFeeTP?.toFixed(4) }} USDT</span>
+                        </div>
+                    </div>
+
                 </div>
 
                 <div class="text-[11px] text-textLight opacity-60 mt-2">
@@ -348,6 +381,27 @@
 
                     entryLine: null,
                     liqLine: null,
+
+                    // ===== 止盈止损 & 手续费 =====
+                    simStopPrice: null,        // 止损价（可手动改）
+                    simRR: 1.5,                // 盈亏比，默认 1:1.5
+                    simTakePrice: null,        // 止盈价（可手动改）
+
+                    feeMaker: 0.0002,          // 0.020%
+                    feeTaker: 0.0006,          // 0.060%
+
+                    // 盈亏结果
+                    simPnLTP: null,            // 止盈毛盈利
+                    simPnLTPNet: null,         // 止盈净盈利
+                    simPnLSL: null,            // 止损毛亏损
+                    simPnLSLNet: null,         // 止损净亏损
+                    simFeeTP: null,            // 止盈手续费
+                    simFeeSL: null,            // 止损手续费
+
+                    // 图表线
+                    stopLine: null,
+                    takeLine: null,
+
                 }
             },
 
@@ -969,6 +1023,89 @@
                         { time: end, value: this.simLiqPrice }
                     ]);
                 },
+
+                drawTPSLLines() {
+                    const start = this.klines[0].time;
+                    const end = this.klines[this.klines.length - 1].time;
+
+                    // 清理旧线
+                    if (this.stopLine) this.chart.removeSeries(this.stopLine);
+                    if (this.takeLine) this.chart.removeSeries(this.takeLine);
+
+                    // 止损线（红）
+                    this.stopLine = this.chart.addSeries(LightweightCharts.LineSeries, {
+                        color: '#ef4444',
+                        lineWidth: 2,
+                        lineStyle: LightweightCharts.LineStyle.Dashed,
+                        title: '止损价'
+                    });
+                    this.stopLine.setData([
+                        { time: start, value: this.simStopPrice },
+                        { time: end, value: this.simStopPrice }
+                    ]);
+
+                    // 止盈线（绿）
+                    this.takeLine = this.chart.addSeries(LightweightCharts.LineSeries, {
+                        color: '#22c55e',
+                        lineWidth: 2,
+                        lineStyle: LightweightCharts.LineStyle.Dashed,
+                        title: '止盈价'
+                    });
+                    this.takeLine.setData([
+                        { time: start, value: this.simTakePrice },
+                        { time: end, value: this.simTakePrice }
+                    ]);
+                },
+
+                recalcTPByRR() {
+                    if (!this.simEntryPrice || !this.simStopPrice) return;
+
+                    const entry = this.simEntryPrice;
+                    const sl = this.simStopPrice;
+
+                    const risk = this.positionSide === 'long'
+                        ? entry - sl
+                        : sl - entry;
+
+                    if (risk <= 0) return;
+
+                    this.simTakePrice = this.positionSide === 'long'
+                        ? entry + risk * this.simRR
+                        : entry - risk * this.simRR;
+
+                    this.recalcPnL();
+                },
+                recalcPnL() {
+                    if (!this.simTakePrice || !this.simStopPrice) return;
+
+                    const qty = this.simQty;
+                    const entry = this.simEntryPrice;
+
+                    // === 止盈 ===
+                    const pnlTP = this.positionSide === 'long'
+                        ? (this.simTakePrice - entry) * qty
+                        : (entry - this.simTakePrice) * qty;
+
+                    const feeOpen = entry * qty * this.feeTaker;
+                    const feeCloseTP = this.simTakePrice * qty * this.feeTaker;
+
+                    this.simPnLTP = pnlTP;
+                    this.simFeeTP = feeOpen + feeCloseTP;
+                    this.simPnLTPNet = pnlTP - this.simFeeTP;
+
+                    // === 止损 ===
+                    const pnlSL = this.positionSide === 'long'
+                        ? (this.simStopPrice - entry) * qty
+                        : (entry - this.simStopPrice) * qty;
+
+                    const feeCloseSL = this.simStopPrice * qty * this.feeTaker;
+
+                    this.simPnLSL = pnlSL;
+                    this.simPnLSLNet = pnlSL - (feeOpen + feeCloseSL);
+
+                    this.drawTPSLLines();
+                },
+
             }
         }).mount('#app');
     </script>
