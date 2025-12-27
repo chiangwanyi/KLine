@@ -12,349 +12,213 @@
     <!-- Lightweight Charts -->
     <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
 
-    <style>
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
 
-        body {
-            background: #0f172a;
-            color: #e5e7eb;
-            font-family: Arial, sans-serif;
-            min-height: 100vh;
-        }
-
-        #app {
-            display: flex;
-            height: 100vh;
-            overflow: hidden;
-        }
-
-        .left {
-            width: 320px;
-            background: #020617;
-            padding: 10px;
-            overflow-y: auto;
-            border-right: 1px solid #1e293b;
-            scrollbar-width: thin;
-            scrollbar-color: #334155 #020617;
-        }
-
-        .left::-webkit-scrollbar {
-            width: 6px;
-        }
-
-        .left::-webkit-scrollbar-track {
-            background: #020617;
-        }
-
-        .left::-webkit-scrollbar-thumb {
-            background-color: #334155;
-            border-radius: 3px;
-        }
-
-        .right {
-            flex: 1;
-            height: 100vh;
-            position: relative;
-        }
-
-        .panel {
-            border: 1px solid #1e293b;
-            margin-bottom: 12px;
-            padding: 12px;
-            border-radius: 4px;
-            background: rgba(2, 6, 23, 0.8);
-        }
-
-        .panel h3 {
-            margin: 0 0 10px;
-            font-size: 14px;
-            color: #cbd5f5;
-            padding-bottom: 6px;
-            border-bottom: 1px solid #1e293b;
-        }
-
-        label {
-            font-size: 12px;
-            display: block;
-            margin-top: 8px;
-            color: #94a3b8;
-        }
-
-        input,
-        select,
-        button {
-            width: 100%;
-            margin-top: 4px;
-            background: #0f172a;
-            color: #e5e7eb;
-            border: 1px solid #334155;
-            padding: 6px 8px;
-            border-radius: 3px;
-            font-size: 12px;
-        }
-
-        /* 颜色选择器样式优化 */
-        input[type="color"] {
-            padding: 2px;
-            height: 34px;
-            cursor: pointer;
-            background: #0f172a;
-        }
-
-        /* 透明度输入框样式 */
-        .opacity-input {
-            width: 100%;
-            margin-top: 4px;
-            background: #0f172a;
-            color: #e5e7eb;
-            border: 1px solid #334155;
-            padding: 6px 8px;
-            border-radius: 3px;
-            font-size: 12px;
-        }
-
-        /* 开关样式 */
-        .toggle-switch {
-            display: flex;
-            align-items: center;
-            margin-top: 8px;
-        }
-        
-        .toggle-switch input {
-            width: auto;
-            margin-right: 6px;
-        }
-        
-        .toggle-switch label {
-            margin: 0;
-            display: inline;
-        }
-
-        input:focus,
-        select:focus {
-            outline: none;
-            border-color: #64748b;
-        }
-
-        button {
-            cursor: pointer;
-            background: #1e293b;
-            transition: all 0.2s ease;
-            border: none;
-            margin-top: 8px;
-        }
-
-        button:hover {
-            background: #334155;
-        }
-
-        button:active {
-            opacity: 0.8;
-        }
-
-        .ema-row {
-            border: 1px solid #334155;
-            padding: 10px;
-            margin-bottom: 8px;
-            border-radius: 4px;
-            background: #0f172a;
-        }
-
-        .small-btn {
-            background: #0f172a;
-            border: 1px solid #334155;
-            padding: 4px 8px;
-            margin-top: 10px;
-        }
-
-        .small-btn:hover {
-            background: #1e293b;
-        }
-
-        /* 悬浮提示层样式（微调） */
-        .kline-tooltip {
-            position: absolute;
-            z-index: 100;
-            background: #020617;
-            border: 1px solid #334155;
-            border-radius: 4px;
-            padding: 8px 12px;
-            font-size: 12px;
-            color: #e5e7eb;
-            pointer-events: none;
-            opacity: 0;
-            transition: opacity 0.2s ease;
-            min-width: 180px;
-            max-width: 500px;
-            box-sizing: border-box;
-        }
-
-        .kline-tooltip .tooltip-item {
-            display: flex;
-            justify-content: space-between;
-            margin: 4px 0;
-        }
-
-        .kline-tooltip .tooltip-label {
-            color: #94a3b8;
-        }
-
-        .kline-tooltip .tooltip-value {
-            color: #cbd5f5;
-        }
-
-        .kline-tooltip .tooltip-up {
-            color: #22c55e;
-        }
-
-        .kline-tooltip .tooltip-down {
-            color: #ef4444;
-        }
-
-        @media (max-width: 480px) {
-            #app {
-                flex-direction: column;
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#0f172a',
+                        secondary: '#020617',
+                        border: '#1e293b',
+                        text: '#e5e7eb',
+                        textLight: '#94a3b8',
+                        textHighlight: '#cbd5f5',
+                        up: '#22c55e',
+                        down: '#ef4444',
+                    },
+                    fontFamily: {
+                        sans: ['Arial', 'sans-serif'],
+                    },
+                }
             }
+        }
+    </script>
 
-            .left {
-                width: 100%;
-                height: 40vh;
-                border-right: none;
-                border-bottom: 1px solid #1e293b;
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
             }
-
-            .right {
-                height: 60vh;
+            .scrollbar-thin {
+                scrollbar-width: thin;
+            }
+            .scrollbar-thumb-color {
+                scrollbar-color: #334155 #020617;
+            }
+            .color-input {
+                padding: 2px;
+                height: 34px;
+                cursor: pointer;
             }
         }
     </style>
 </head>
 
-<body>
-    <div id="app">
-        <!-- 左侧功能区 -->
-        <div class="left">
-            <!-- 参数设置 -->
-            <div class="panel">
-                <h3>参数设置</h3>
-                <label>合约 Symbol</label>
-                <input v-model="symbol">
-                <label>开始时间</label>
-                <input type="datetime-local" v-model="startTime">
-                <label>结束时间</label>
-                <input type="datetime-local" v-model="endTime">
-                <label>快速选择日期</label>
-                <input type="date" v-model="selectedDate" @change="fillDay">
-                <label>K线周期</label>
-                <select v-model="interval" @change="handleIntervalChange">
-                    <option>1m</option>
-                    <option>5m</option>
-                    <option>1h</option>
-                    <option>4h</option>
-                </select>
-                <label>时区</label>
-                <select v-model="timezone" @change="updateChartTimeFormatter">
-                    <option value="UTC">UTC</option>
-                    <option value="Asia/Shanghai">上海</option>
-                    <option value="America/New_York">纽约</option>
-                </select>
-                <button @click="loadKlines">请求K线数据</button>
+<body class="bg-primary text-text font-sans min-h-screen m-0 p-0">
+    <div id="app" class="flex h-screen overflow-hidden">
+        <!-- 左侧功能区 - 更紧凑的布局 -->
+        <div class="left w-[320px] bg-secondary p-2 overflow-y-auto border-r border-border scrollbar-thin scrollbar-thumb-color">
+            <!-- 参数设置面板 -->
+            <div class="panel border border-border mb-3 p-3 rounded bg-secondary/80">
+                <h3 class="text-textHighlight text-sm mb-2 pb-2 border-b border-border">参数设置</h3>
+                
+                <div class="mb-2">
+                    <label class="text-textLight text-xs block mb-1">合约 Symbol</label>
+                    <input v-model="symbol" class="w-full bg-primary text-text border border-border px-2 py-1.5 rounded text-xs focus:outline-none focus:border-[#64748b]">
+                </div>
+                
+                <div class="grid grid-cols-2 gap-2 mb-2">
+                    <div>
+                        <label class="text-textLight text-xs block mb-1">开始时间</label>
+                        <input type="datetime-local" v-model="startTime" class="w-full bg-primary text-text border border-border px-2 py-1.5 rounded text-xs focus:outline-none focus:border-[#64748b]">
+                    </div>
+                    <div>
+                        <label class="text-textLight text-xs block mb-1">结束时间</label>
+                        <input type="datetime-local" v-model="endTime" class="w-full bg-primary text-text border border-border px-2 py-1.5 rounded text-xs focus:outline-none focus:border-[#64748b]">
+                    </div>
+                </div>
+                
+                <div class="mb-2">
+                    <label class="text-textLight text-xs block mb-1">快速选择日期</label>
+                    <input type="date" v-model="selectedDate" @change="fillDay" class="w-full bg-primary text-text border border-border px-2 py-1.5 rounded text-xs focus:outline-none focus:border-[#64748b]">
+                </div>
+                
+                <div class="grid grid-cols-2 gap-2 mb-2">
+                    <div>
+                        <label class="text-textLight text-xs block mb-1">K线周期</label>
+                        <select v-model="interval" @change="handleIntervalChange" class="w-full bg-primary text-text border border-border px-2 py-1.5 rounded text-xs focus:outline-none focus:border-[#64748b]">
+                            <option>1m</option>
+                            <option>5m</option>
+                            <option>1h</option>
+                            <option>4h</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="text-textLight text-xs block mb-1">时区</label>
+                        <select v-model="timezone" @change="updateChartTimeFormatter" class="w-full bg-primary text-text border border-border px-2 py-1.5 rounded text-xs focus:outline-none focus:border-[#64748b]">
+                            <option value="UTC">UTC</option>
+                            <option value="Asia/Shanghai">上海</option>
+                            <option value="America/New_York">纽约</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <button @click="loadKlines" class="w-full bg-border hover:bg-[#334155] transition-colors text-xs py-1.5 rounded cursor-pointer mt-1">
+                    请求K线数据
+                </button>
             </div>
 
-            <!-- 凌晨时段高低点设置（支持颜色+透明度自定义） -->
-            <div class="panel">
-                <h3>凌晨时段(0:00-4:00)高低点设置</h3>
-                <div class="toggle-switch">
-                    <input type="checkbox" id="showEarlyLevels" v-model="showEarlyLevels" @change="toggleEarlyLevels">
-                    <label for="showEarlyLevels">显示高低点线</label>
+            <!-- 凌晨时段高低点设置 -->
+            <div class="panel border border-border mb-3 p-3 rounded bg-secondary/80">
+                <h3 class="text-textHighlight text-sm mb-2 pb-2 border-b border-border">凌晨时段(0:00-4:00)高低点设置</h3>
+                
+                <div class="flex items-center mb-2">
+                    <input type="checkbox" id="showEarlyLevels" v-model="showEarlyLevels" @change="toggleEarlyLevels" class="mr-2">
+                    <label for="showEarlyLevels" class="text-textLight text-xs">显示高低点线</label>
                 </div>
-                <label>最高价线段颜色</label>
-                <input type="color" v-model="earlyHighColorHex" @change="updateEarlyHighRgba">
-                <label>最高价线段透明度 (0-1)</label>
-                <input type="number" v-model.number="earlyHighOpacity" min="0" max="1" step="0.1"
-                    @change="updateEarlyHighRgba" class="opacity-input">
+                
+                <div class="mb-2">
+                    <label class="text-textLight text-xs block mb-1">最高价线段</label>
+                    <div class="flex items-center gap-2">
+                        <input type="color" v-model="earlyHighColorHex" @change="updateEarlyHighRgba" class="color-input bg-primary border border-border rounded flex-0 w-8">
+                        <input type="number" v-model.number="earlyHighOpacity" min="0" max="1" step="0.1" @change="updateEarlyHighRgba" class="flex-1 bg-primary text-text border border-border px-2 py-1.5 rounded text-xs focus:outline-none focus:border-[#64748b] placeholder:text-textLight" placeholder="透明度">
+                    </div>
+                </div>
 
-                <label style="margin-top: 12px;">最低价线段颜色</label>
-                <input type="color" v-model="earlyLowColorHex" @change="updateEarlyLowRgba">
-                <label>最低价线段透明度 (0-1)</label>
-                <input type="number" v-model.number="earlyLowOpacity" min="0" max="1" step="0.1"
-                    @change="updateEarlyLowRgba" class="opacity-input">
+                <div class="mb-2">
+                    <label class="text-textLight text-xs block mb-1">最低价线段</label>
+                    <div class="flex items-center gap-2">
+                        <input type="color" v-model="earlyLowColorHex" @change="updateEarlyLowRgba" class="color-input bg-primary border border-border rounded flex-0 w-8">
+                        <input type="number" v-model.number="earlyLowOpacity" min="0" max="1" step="0.1" @change="updateEarlyLowRgba" class="flex-1 bg-primary text-text border border-border px-2 py-1.5 rounded text-xs focus:outline-none focus:border-[#64748b] placeholder:text-textLight" placeholder="透明度">
+                    </div>
+                </div>
 
                 <!-- 实时显示高低点数值 -->
-                <div v-if="earlyHigh || earlyLow"
-                    style="margin-top: 12px; padding-top: 8px; border-top: 1px solid #1e293b;">
-                    <div class="tooltip-item">
-                        <span class="tooltip-label">最高价格</span>
-                        <span class="tooltip-value tooltip-up">{{ earlyHigh?.toFixed(4) }}</span>
+                <div v-if="earlyHigh || earlyLow" class="mt-2 pt-2 border-t border-border text-xs">
+                    <div class="flex justify-between mb-1">
+                        <span class="text-textLight">最高价格</span>
+                        <span class="text-up">{{ earlyHigh?.toFixed(4) }}</span>
                     </div>
-                    <div class="tooltip-item">
-                        <span class="tooltip-label">最低价格</span>
-                        <span class="tooltip-value tooltip-down">{{ earlyLow?.toFixed(4) }}</span>
+                    <div class="flex justify-between">
+                        <span class="text-textLight">最低价格</span>
+                        <span class="text-down">{{ earlyLow?.toFixed(4) }}</span>
                     </div>
                 </div>
             </div>
 
-            <!-- 技术指标 - EMA（支持颜色+透明度自定义） -->
-            <div class="panel">
-                <h3>技术指标 - EMA</h3>
-                <div v-for="(ema, i) in emas" :key="ema.id" class="ema-row">
-                    <div class="toggle-switch">
-                        <input type="checkbox" :id="'showEma' + ema.id" v-model="ema.show" @change="updateIndicators">
-                        <label :for="'showEma' + ema.id">显示EMA {{ ema.length }}</label>
+            <!-- 技术指标 - EMA -->
+            <div class="panel border border-border mb-3 p-3 rounded bg-secondary/80">
+                <h3 class="text-textHighlight text-sm mb-2 pb-2 border-b border-border">技术指标 - EMA</h3>
+                
+                <div v-for="(ema, i) in emas" :key="ema.id" class="border border-border p-2 mb-2 rounded bg-primary">
+                    <div class="flex items-center mb-2">
+                        <input type="checkbox" :id="'showEma' + ema.id" v-model="ema.show" @change="updateIndicators" class="mr-2">
+                        <label :for="'showEma' + ema.id" class="text-textLight text-xs">显示EMA {{ ema.length }}</label>
                     </div>
-                    <label>周期</label>
-                    <input type="number" v-model.number="ema.length" @input="updateIndicators" min="1">
-                    <label>均线颜色</label>
-                    <input type="color" v-model="ema.colorHex" @change="updateEmaRgba(ema)">
-                    <label>均线透明度 (0-1)</label>
-                    <input type="number" v-model.number="ema.opacity" min="0" max="1" step="0.1"
-                        @change="updateEmaRgba(ema)" class="opacity-input">
-                    <button class="small-btn" @click="removeEma(i)">删除</button>
+                    
+                    <div class="flex gap-2 items-center">
+                        <div class="w-1/4">
+                            <label class="text-textLight text-xs block mb-1">周期</label>
+                            <input type="number" v-model.number="ema.length" @input="updateIndicators" min="1" class="w-full bg-primary text-text border border-border px-2 py-1 rounded text-xs focus:outline-none focus:border-[#64748b]">
+                        </div>
+                        <div class="w-3/4">
+                            <label class="text-textLight text-xs block mb-1">颜色 & 透明度</label>
+                            <div class="flex items-center gap-2">
+                                <input type="color" v-model="ema.colorHex" @change="updateEmaRgba(ema)" class="color-input bg-primary border border-border rounded flex-0 w-7">
+                                <input type="number" v-model.number="ema.opacity" min="0" max="1" step="0.1" @change="updateEmaRgba(ema)" class="flex-1 bg-primary text-text border border-border px-2 py-1 rounded text-xs focus:outline-none focus:border-[#64748b] placeholder:text-textLight" placeholder="透明度">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <button class="mt-2 bg-primary border border-border hover:bg-border text-xs px-2 py-1 rounded cursor-pointer" @click="removeEma(i)">
+                        删除
+                    </button>
                 </div>
-                <button @click="addEma">+ 添加 EMA</button>
+                
+                <button @click="addEma" class="w-full bg-border hover:bg-[#334155] transition-colors text-xs py-1.5 rounded cursor-pointer">
+                    + 添加 EMA
+                </button>
             </div>
 
             <!-- 合约计算器 -->
-            <div class="panel">
-                <h3>合约计算器</h3>
-                <div style="font-size:12px;opacity:.6">
+            <div class="panel border border-border p-3 rounded bg-secondary/80">
+                <h3 class="text-textHighlight text-sm mb-2 pb-2 border-b border-border">合约计算器</h3>
+                <div class="text-textLight text-xs opacity-60">
                     后续可加入强平价、盈亏计算等
                 </div>
             </div>
         </div>
 
         <!-- 图表区 -->
-        <div class="right" ref="chartEl">
-            <div class="kline-tooltip" ref="tooltipEl"
-                :style="{ top: tooltipPos.top + 'px', left: tooltipPos.left + 'px', opacity: tooltipPos.opacity }">
-                <div class="tooltip-item" v-if="currentKline">
-                    <span class="tooltip-label">时区时间</span>
-                    <span class="tooltip-value">{{ formatUtcToSelectedTimezone(currentKline.time) }}</span>
+        <div class="right flex-1 h-screen relative" ref="chartEl">
+            <div class="kline-tooltip absolute z-10 bg-secondary border border-border rounded px-3 py-2 text-xs text-text pointer-events-none transition-opacity min-w-[180px] max-w-[500px]" 
+                 ref="tooltipEl" :style="{ top: tooltipPos.top + 'px', left: tooltipPos.left + 'px', opacity: tooltipPos.opacity }">
+                <div class="flex justify-between mb-1" v-if="currentKline">
+                    <span class="text-textLight">时区时间</span>
+                    <span class="text-textHighlight">{{ formatUtcToSelectedTimezone(currentKline.time) }}</span>
                 </div>
-                <div class="tooltip-item" v-if="currentKline"> 
-                    <span class="tooltip-label">本地时间</span>
-                    <span class="tooltip-value">{{ formatUtcToLocalTime(currentKline.time) }}</span>
+                <div class="flex justify-between mb-1" v-if="currentKline"> 
+                    <span class="text-textLight">本地时间</span>
+                    <span class="text-textHighlight">{{ formatUtcToLocalTime(currentKline.time) }}</span>
                 </div>
-                <div class="tooltip-item" v-if="currentKline">
-                    <span class="tooltip-label">开盘</span>
-                    <span class="tooltip-value">{{ currentKline.open.toFixed(4) }}</span>
+                <div class="flex justify-between mb-1" v-if="currentKline">
+                    <span class="text-textLight">开盘</span>
+                    <span class="text-textHighlight">{{ currentKline.open.toFixed(4) }}</span>
                 </div>
-                <div class="tooltip-item" v-if="currentKline">
-                    <span class="tooltip-label">最高</span>
-                    <span class="tooltip-value">{{ currentKline.high.toFixed(4) }}</span>
+                <div class="flex justify-between mb-1" v-if="currentKline">
+                    <span class="text-textLight">最高</span>
+                    <span class="text-textHighlight">{{ currentKline.high.toFixed(4) }}</span>
                 </div>
-                <div class="tooltip-item" v-if="currentKline">
-                    <span class="tooltip-label">最低</span>
-                    <span class="tooltip-value">{{ currentKline.low.toFixed(4) }}</span>
+                <div class="flex justify-between mb-1" v-if="currentKline">
+                    <span class="text-textLight">最低</span>
+                    <span class="text-textHighlight">{{ currentKline.low.toFixed(4) }}</span>
                 </div>
-                <div class="tooltip-item" v-if="currentKline">
-                    <span class="tooltip-label">收盘</span>
-                    <span
-                        :class="['tooltip-value', currentKline.close >= currentKline.open ? 'tooltip-up' : 'tooltip-down']">
+                <div class="flex justify-between" v-if="currentKline">
+                    <span class="text-textLight">收盘</span>
+                    <span :class="['text-textHighlight', currentKline.close >= currentKline.open ? 'text-up' : 'text-down']">
                         {{ currentKline.close.toFixed(4) }}
                     </span>
                 </div>
