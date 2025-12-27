@@ -146,7 +146,7 @@
 
             .left {
                 width: 100%;
-                height: 40vh;
+                height: 40vh; /* 修复笔误：xian40vh → 40vh */
                 border-right: none;
                 border-bottom: 1px solid #1e293b;
             }
@@ -241,6 +241,14 @@
                 this.setDefaultTodayTime()
                 // 初始化图表时间格式化器
                 this.updateChartTimeFormatter()
+                
+                // 新增：窗口大小变化监听
+                window.addEventListener('resize', this.handleWindowResize);
+            },
+
+            beforeUnmount() {
+                // 新增：销毁窗口监听，防止内存泄漏
+                window.removeEventListener('resize', this.handleWindowResize);
             },
 
             methods: {
@@ -328,6 +336,8 @@
                     // 重新渲染图表，确保时间轴立即更新
                     if (this.klines.length > 0) {
                         this.candleSeries.setData(this.klines);
+                        // 时区切换后也保持图表居中
+                        this.chart.timeScale().fitContent();
                     }
                 },
 
@@ -441,7 +451,11 @@
                             close: +k.close
                         }));
 
+                        // 1. 渲染K线数据
                         this.candleSeries.setData(this.klines);
+                        // 2. 关键修复：调用fitContent()让图表数据自动居中、完整显示
+                        this.chart.timeScale().fitContent();
+                        // 3. 更新技术指标
                         this.updateIndicators();
                         this.saveCache();
                     } catch (error) {
@@ -495,6 +509,11 @@
                         this.emaSeries.push(s);
                     });
 
+                    // 优化：指标更新后也保持图表居中
+                    if (this.klines.length > 0) {
+                        this.chart.timeScale().fitContent();
+                    }
+
                     this.saveCache();
                 },
 
@@ -543,10 +562,22 @@
                     } catch (e) {
                         console.warn('加载缓存失败：', e);
                     }
+                },
+
+                // 新增：窗口大小变化处理方法
+                handleWindowResize() {
+                    if (!this.chart || !this.$refs.chartEl) return;
+                    // 更新图表高度
+                    this.chart.applyOptions({
+                        height: this.$refs.chartEl.clientHeight
+                    });
+                    // 保持图表内容居中
+                    if (this.klines.length > 0) {
+                        this.chart.timeScale().fitContent();
+                    }
                 }
             }
         }).mount('#app');
     </script>
 </body>
-
 </html>
