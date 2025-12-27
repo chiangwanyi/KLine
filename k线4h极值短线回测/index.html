@@ -138,7 +138,7 @@
             background: #1e293b;
         }
 
-        /* 新增：K线数据悬浮提示层样式 */
+        /* 悬浮提示层样式（微调） */
         .kline-tooltip {
             position: absolute;
             z-index: 100;
@@ -148,10 +148,13 @@
             padding: 8px 12px;
             font-size: 12px;
             color: #e5e7eb;
-            pointer-events: none; /* 防止遮挡光标事件 */
+            pointer-events: none;
             opacity: 0;
             transition: opacity 0.2s ease;
             min-width: 180px;
+            /* 新增：防止溢出时隐藏 */
+            max-width: 220px;
+            box-sizing: border-box;
         }
 
         .kline-tooltip .tooltip-item {
@@ -245,9 +248,10 @@
                 </div>
             </div>
         </div>
-        <!-- 图表区：新增悬浮提示层 -->
+        <!-- 图表区 -->
         <div class="right" ref="chartEl">
-            <div class="kline-tooltip" ref="tooltipEl" :style="{ top: tooltipPos.top + 'px', left: tooltipPos.left + 'px', opacity: tooltipPos.opacity }">
+            <div class="kline-tooltip" ref="tooltipEl"
+                :style="{ top: tooltipPos.top + 'px', left: tooltipPos.left + 'px', opacity: tooltipPos.opacity }">
                 <div class="tooltip-item" v-if="currentKline">
                     <span class="tooltip-label">时间</span>
                     <span class="tooltip-value">{{ formatUtcToSelectedTimezone(currentKline.time) }}</span>
@@ -266,7 +270,8 @@
                 </div>
                 <div class="tooltip-item" v-if="currentKline">
                     <span class="tooltip-label">收盘</span>
-                    <span :class="['tooltip-value', currentKline.close >= currentKline.open ? 'tooltip-up' : 'tooltip-down']">
+                    <span
+                        :class="['tooltip-value', currentKline.close >= currentKline.open ? 'tooltip-up' : 'tooltip-down']">
                         {{ currentKline.close.toFixed(4) }}
                     </span>
                 </div>
@@ -294,9 +299,9 @@
                     selectedDate: '',
                     emas: [],
 
-                    // 新增：悬浮提示相关数据
-                    currentKline: null, // 当前选中的K线数据
-                    tooltipPos: { // 提示层位置和透明度
+                    // 悬浮提示相关数据
+                    currentKline: null,
+                    tooltipPos: {
                         top: 0,
                         left: 0,
                         opacity: 0
@@ -310,30 +315,22 @@
                 this.setDefaultTodayTime();
                 this.updateChartTimeFormatter();
                 this.updateIndicators();
-                // 新增：初始化十字光标监听
                 this.initCrosshairListener();
 
-                // 窗口大小变化监听
                 window.addEventListener('resize', this.handleWindowResize);
             },
 
             unmounted() {
-                // 移除窗口监听，防止内存泄漏
                 window.removeEventListener('resize', this.handleWindowResize);
             },
 
             methods: {
                 /**
-                 * 核心1：图表渲染专用 - 将秒级UTC时间戳转为「选中时区」的本地格式化时间
-                 * 保证图表刻度尺显示的是选中时区的时间（如纽约时间26日00:00-23:59）
-                 * @param {number} utcTimestamp - 秒级UTC时间戳（Lightweight Charts 传入）
-                 * @returns {string} 格式化后的选中时区本地时间字符串
+                 * 格式化时间
                  */
                 formatUtcToSelectedTimezone(utcTimestamp) {
                     if (!utcTimestamp) return '';
-                    // 转为毫秒级适配JavaScript Date对象
                     const date = new Date(utcTimestamp * 1000);
-                    // 强制使用选中的时区进行格式化，保证显示一致
                     return new Intl.DateTimeFormat('zh-CN', {
                         timeZone: this.timezone,
                         year: 'numeric',
@@ -346,23 +343,20 @@
                 },
 
                 /**
-                 * 仅更新图表时间显示格式（切换时区时调用，不改动已有数据和时间轴）
-                 * 满足：切换时区后，已有图表时间轴位置不变，仅刻度尺显示为新时区格式
+                 * 更新时间格式化
                  */
                 updateChartTimeFormatter() {
                     if (!this.chart) return;
-                    // 仅更新时间刻度的格式化逻辑，不重新设置K线数据，不改变图表布局
                     this.chart.timeScale().applyOptions({
                         tickMarkFormatter: (utcTimestamp) => this.formatUtcToSelectedTimezone(utcTimestamp)
                     });
                 },
 
                 /**
-                 * 初始化「选中时区」当天的默认本地时间范围
-                 * 保证默认时间也是对应时区的本地时间（如纽约时区的当天00:00-23:59）
+                 * 设置默认时间
                  */
                 setDefaultTodayTime() {
-                    if (this.startTime && this.endTime) return; // 保留缓存优先级，不覆盖已有值
+                    if (this.startTime && this.endTime) return;
 
                     const now = new Date();
                     const timezoneDateFormatter = new Intl.DateTimeFormat('en-US', {
@@ -377,7 +371,6 @@
                     const month = parts.find(p => p.type === 'month').value;
                     const day = parts.find(p => p.type === 'day').value;
                     const todayLocalDate = `${year}-${month}-${day}`;
-                    // 赋值该时区的本地默认时间范围
                     this.selectedDate = this.selectedDate || todayLocalDate;
                     this.startTime = this.startTime || `${todayLocalDate}T00:00`;
                     this.endTime = this.endTime || `${todayLocalDate}T23:59`;
@@ -407,64 +400,69 @@
                 },
 
                 /**
-                 * 新增：初始化十字光标移动监听，实现K线数据悬浮显示
+                 * 核心修改：优化十字光标监听，让悬浮框紧贴光标
                  */
                 initCrosshairListener() {
                     if (!this.chart || !this.candleSeries) return;
 
-                    // 核心API：subscribeCrosshairMove 监听十字光标移动事件
                     this.chart.subscribeCrosshairMove((param) => {
-                        // 1. 从当前光标位置获取K线数据（通过candleSeries的dataAtIndex方法）
                         const point = param.point;
                         if (!point || !param.time) {
-                            // 光标离开图表区域，隐藏提示层
                             this.currentKline = null;
                             this.tooltipPos.opacity = 0;
                             return;
                         }
 
-                        // 2. 匹配当前时间对应的K线数据
+                        // 1. 匹配当前K线数据
                         const currentKline = this.klines.find(k => k.time === param.time);
                         if (!currentKline) {
                             this.currentKline = null;
                             this.tooltipPos.opacity = 0;
                             return;
                         }
-
-                        // 3. 更新当前K线数据
                         this.currentKline = currentKline;
 
-                        // 4. 计算提示层位置（偏移光标位置，防止遮挡）
+                        // 2. 计算提示框位置（关键修改：减少偏移量，改为紧贴光标）
                         const chartRect = this.$refs.chartEl.getBoundingClientRect();
+                        const tooltipEl = this.$refs.tooltipEl;
+                        const tooltipWidth = tooltipEl.offsetWidth || 180;
+                        const tooltipHeight = tooltipEl.offsetHeight || 100;
+
+                        // 光标右侧偏移10px，下方偏移5px（紧贴效果）
+                        let left = point.x + 10;
+                        let top = point.y + 5;
+
+                        // 3. 边界处理：防止提示框溢出图表容器
+                        const maxLeft = chartRect.width - tooltipWidth - 10;
+                        const maxTop = chartRect.height - tooltipHeight - 10;
+                        left = Math.min(left, maxLeft);
+                        left = Math.max(left, 10); // 左边界留10px
+                        top = Math.min(top, maxTop);
+                        top = Math.max(top, 10); // 上边界留10px
+
+                        // 4. 更新位置（基于图表容器的相对坐标）
                         this.tooltipPos = {
-                            top: point.y + chartRect.top + 10, // 向下偏移10px
-                            left: point.x + chartRect.left + 10, // 向右偏移10px
-                            opacity: 1 // 显示提示层
+                            top: top,
+                            left: left,
+                            opacity: 1
                         };
                     });
                 },
 
                 /**
-                 * 核心：加载K线数据（准确映射选中时区时间范围→UTC请求→图表渲染选中时区）
+                 * 加载K线数据
                  */
                 async loadKlines() {
                     if (!this.symbol || !this.startTime || !this.endTime) {
                         alert('请填写完整的合约Symbol和时间范围！');
                         return;
                     }
-                    // 验证转换结果
-                    if (!this.startTime || !this.endTime) {
-                        alert('时间格式无效，请检查输入！');
-                        return;
-                    }
-                    // 构造接口请求地址（携带UTC时间戳，满足后台要求）
                     const url = `http://127.0.0.1:8001/api/klines?symbol=${this.symbol}&interval=${this.interval}&start=${this.startTime}&end=${this.endTime}&timezone=${this.timezone}`;
 
                     try {
                         const res = await fetch(url);
                         if (!res.ok) throw new Error(`请求失败：${res.status} ${res.statusText}`);
                         const data = await res.json();
-                        // 后台返回UTC毫秒级→转秒级供图表使用
                         this.klines = data.map(k => ({
                             time: Math.floor(k.time / 1000),
                             open: +k.open,
@@ -473,11 +471,10 @@
                             close: +k.close
                         }));
 
-                        // 仅在请求新数据后，更新图表内容和时间轴（同步选中时区显示格式）
                         this.candleSeries.setData(this.klines);
-                        this.chart.timeScale().fitContent(); // 自动适配内容
-                        this.updateIndicators(); // 更新EMA指标
-                        this.saveCache(); // 保存最新配置
+                        this.chart.timeScale().fitContent();
+                        this.updateIndicators();
+                        this.saveCache();
                     } catch (error) {
                         console.error('加载K线数据失败：', error);
                         alert('加载K线数据失败，请检查接口是否可用或控制台查看详情！');
@@ -485,7 +482,7 @@
                 },
 
                 /**
-                 * 简化：计算EMA指标
+                 * 计算EMA
                  */
                 calcEMA(data, length) {
                     if (!Array.isArray(data) || data.length === 0 || length < 1) return [];
@@ -503,12 +500,11 @@
                 },
 
                 /**
-                 * 简化：更新EMA指标系列
+                 * 更新指标
                  */
                 updateIndicators() {
                     if (!this.chart) return;
 
-                    // 移除旧的EMA系列
                     this.emaSeries.forEach(s => this.chart.removeSeries(s));
                     this.emaSeries = [];
 
@@ -522,12 +518,11 @@
                         this.emaSeries.push(lineSeries);
                     });
 
-                    // 适配图表内容
                     if (this.klines.length > 0) this.chart.timeScale().fitContent();
                 },
 
                 /**
-                 * 添加EMA指标
+                 * 添加EMA
                  */
                 addEma() {
                     this.emas.push({
@@ -539,7 +534,7 @@
                 },
 
                 /**
-                 * 删除EMA指标
+                 * 删除EMA
                  */
                 removeEma(i) {
                     this.emas.splice(i, 1);
@@ -547,7 +542,7 @@
                 },
 
                 /**
-                 * 快速填充「选中时区」的当日本地时间范围
+                 * 填充当日时间
                  */
                 fillDay() {
                     if (!this.selectedDate) return;
@@ -556,7 +551,7 @@
                 },
 
                 /**
-                 * 保存配置缓存到本地存储
+                 * 保存缓存
                  */
                 saveCache() {
                     try {
@@ -575,7 +570,7 @@
                 },
 
                 /**
-                 * 从本地存储加载配置缓存
+                 * 加载缓存
                  */
                 loadCache() {
                     try {
@@ -587,7 +582,7 @@
                 },
 
                 /**
-                 * 窗口大小变化处理
+                 * 窗口大小变化
                  */
                 handleWindowResize() {
                     if (!this.chart || !this.$refs.chartEl) return;
