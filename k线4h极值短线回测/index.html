@@ -341,7 +341,7 @@
                     // ===== 合约模拟相关 =====
                     positionSide: 'long', // long | short
                     simQty: 0.001,
-                    simLeverage: 10,
+                    simLeverage: 120,
                     simEntryPrice: null,
                     simMargin: null,
                     simLiqPrice: null,
@@ -684,7 +684,8 @@
                         color: this.earlyHighRgba,
                         lineWidth: 1.5,
                         lineStyle: LightweightCharts.LineStyle.Solid,
-                        crosshairMarkerVisible: false
+                        crosshairMarkerVisible: false,
+                        title: '4h高点线'
                     });
 
                     // 创建低点线（自定义颜色+虚线）
@@ -692,7 +693,8 @@
                         color: this.earlyLowRgba,
                         lineWidth: 1.5,
                         lineStyle: LightweightCharts.LineStyle.Solid,
-                        crosshairMarkerVisible: false
+                        crosshairMarkerVisible: false,
+                        title: '4h低点线'
                     });
 
                     // 设置线条数据（贯穿整个图表）
@@ -945,7 +947,8 @@
                     this.entryLine = this.chart.addSeries(LightweightCharts.LineSeries, {
                         color: '#22c55e',
                         lineWidth: 2,
-                        crosshairMarkerVisible: false
+                        crosshairMarkerVisible: false,
+                        title: '开仓价线',
                     });
 
                     this.entryLine.setData([
@@ -957,7 +960,8 @@
                     this.liqLine = this.chart.addSeries(LightweightCharts.LineSeries, {
                         color: '#ef4444',
                         lineWidth: 2,
-                        crosshairMarkerVisible: false
+                        crosshairMarkerVisible: false,
+                        title: '强平价线'
                     });
 
                     this.liqLine.setData([
