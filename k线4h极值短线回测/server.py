@@ -47,18 +47,18 @@ def get_klines(
         params={
             "symbol": symbol,
             "interval": interval,
-            "startTime": start * 1000,
-            "endTime": end * 1000,
+            "startTime": start,
+            "endTime": end,
             "limit": 1000,
         },
         timeout=10
     )
     resp.raise_for_status()
     raw = resp.json()
-
+    print(f"✅ 获取 {len(raw)} 条 K 线")
     data = [
         {
-            "time": int(k[0] / 1000),
+            "time": int(k[0]),
             "open": float(k[1]),
             "high": float(k[2]),
             "low": float(k[3]),
