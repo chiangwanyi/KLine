@@ -181,7 +181,7 @@
                     <option>4h</option>
                 </select>
                 <label>时区</label>
-                <select v-model="timezone">
+                <select v-model="timezone" @change="updateChartTimeFormatter">
                     <option value="UTC">UTC</option>
                     <option value="Asia/Shanghai">上海</option>
                     <option value="America/New_York">纽约</option>
@@ -237,30 +237,124 @@
                 this.initChart()
                 this.loadCache()
                 this.updateIndicators()
-                // 新增：设置默认时间（上海时区今天），缓存优先级更高
+                // 初始化默认时间（基于当前选中时区）
                 this.setDefaultTodayTime()
+                // 初始化图表时间格式化器
+                this.updateChartTimeFormatter()
             },
 
             methods: {
-                // 新增：核心方法 - 设置上海时区今天的默认时间
+                /**
+                 * 工具方法：将UTC时间戳（秒级）格式化为选中时区的本地时间
+                 * @param {number} utcTimestamp - 秒级UTC时间戳（Lightweight Charts 传入）
+                 * @returns {string} 格式化后的本地时间字符串
+                 */
+                formatTimezoneDate(utcTimestamp) {
+                    if (!utcTimestamp) return '';
+                    // 转换为毫秒级时间戳（JavaScript Date 要求）
+                    const date = new Date(utcTimestamp * 1000);
+                    // 利用Intl.DateTimeFormat实现跨时区格式化
+                    const formatter = new Intl.DateTimeFormat('zh-CN', {
+                        timeZone: this.timezone,
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit'
+                    });
+                    return formatter.format(date);
+                },
+
+                /**
+                 * 工具方法：将选中时区的本地时间转换为UTC时间戳（毫秒）
+                 * @param {string} localDateTime - 本地时间字符串（格式：YYYY-MM-DDTHH:mm）
+                 * @returns {number|null} UTC毫秒级时间戳，失败返回null
+                 */
+                localTimeToUtcTimestamp(localDateTime) {
+                    if (!localDateTime) return null;
+                    try {
+                        // 拆分日期和时间部分
+                        const [datePart, timePart] = localDateTime.split('T');
+                        if (!datePart || !timePart) throw new Error('时间格式错误');
+                        
+                        const [year, month, day] = datePart.split('-').map(Number);
+                        const [hour, minute] = timePart.split(':').map(Number);
+                        
+                        // 利用Intl.DateTimeFormat解析指定时区的时间，转换为UTC时间戳
+                        const formatter = new Intl.DateTimeFormat('en-US', {
+                            timeZone: this.timezone,
+                            year: 'numeric',
+                            month: '2-digit',
+                            day: '2-digit',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            second: '2-digit',
+                            hour12: false
+                        });
+                        
+                        const parts = formatter.formatToParts(new Date(year, month - 1, day, hour, minute));
+                        const dateObj = new Date(
+                            parts.find(p => p.type === 'year').value,
+                            parts.find(p => p.type === 'month').value - 1,
+                            parts.find(p => p.type === 'day').value,
+                            parts.find(p => p.type === 'hour').value,
+                            parts.find(p => p.type === 'minute').value,
+                            parts.find(p => p.type === 'second')?.value || 0
+                        );
+                        
+                        // 验证日期有效性
+                        if (isNaN(dateObj.getTime())) throw new Error('无效日期');
+                        
+                        // 返回UTC毫秒级时间戳
+                        return dateObj.getTime();
+                    } catch (error) {
+                        console.error('本地时间转UTC失败：', error);
+                        return null;
+                    }
+                },
+
+                /**
+                 * 更新图表时间格式化器（时区切换时调用）
+                 */
+                updateChartTimeFormatter() {
+                    if (!this.chart) return;
+                    // 自定义timeScale的tickMarkFormatter，同步选中时区
+                    this.chart.timeScale().applyOptions({
+                        tickMarkFormatter: (utcTimestamp) => {
+                            return this.formatTimezoneDate(utcTimestamp);
+                        }
+                    });
+                    // 重新渲染图表，确保时间轴立即更新
+                    if (this.klines.length > 0) {
+                        this.candleSeries.setData(this.klines);
+                    }
+                },
+
+                // 核心方法 - 设置选中时区今天的默认时间
                 setDefaultTodayTime() {
                     // 若已有缓存的时间/日期，直接返回（不覆盖缓存）
                     if (this.startTime && this.endTime && this.selectedDate) return;
 
-                    // 1. 获取上海时区的当前日期（解决本地时区偏差问题）
-                    const shanghaiTime = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Shanghai' }));
-
-                    // 2. 格式化日期为 YYYY-MM-DD（适配 date 输入框）
-                    const year = shanghaiTime.getFullYear();
-                    const month = String(shanghaiTime.getMonth() + 1).padStart(2, '0');
-                    const day = String(shanghaiTime.getDate()).padStart(2, '0');
+                    // 1. 获取选中时区的当前日期
+                    const now = new Date();
+                    const formatter = new Intl.DateTimeFormat('en-US', {
+                        timeZone: this.timezone,
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit'
+                    });
+                    const parts = formatter.formatToParts(now);
+                    const year = parts.find(p => p.type === 'year').value;
+                    const month = parts.find(p => p.type === 'month').value;
+                    const day = parts.find(p => p.type === 'day').value;
                     const todayDate = `${year}-${month}-${day}`;
 
-                    // 3. 格式化时间为 YYYY-MM-DDTHH:mm（适配 datetime-local 输入框）
+                    // 2. 格式化时间为 YYYY-MM-DDTHH:mm（适配 datetime-local 输入框）
                     const defaultStartTime = `${todayDate}T00:00`;
                     const defaultEndTime = `${todayDate}T23:59`;
 
-                    // 4. 赋值给响应式变量（仅当无值时赋值，保留缓存优先级）
+                    // 3. 赋值给响应式变量（仅当无值时赋值，保留缓存优先级）
                     if (!this.selectedDate) this.selectedDate = todayDate;
                     if (!this.startTime) this.startTime = defaultStartTime;
                     if (!this.endTime) this.endTime = defaultEndTime;
@@ -280,7 +374,9 @@
                         },
                         timeScale: {
                             timeVisible: true,
-                            secondsVisible: false
+                            secondsVisible: false,
+                            // 预留格式化器接口，后续由updateChartTimeFormatter初始化
+                            tickMarkFormatter: () => ''
                         },
                         height: this.$refs.chartEl.clientHeight
                     })
@@ -304,8 +400,15 @@
                         return;
                     }
 
-                    const startTs = new Date(this.startTime).getTime();
-                    const endTs = new Date(this.endTime).getTime();
+                    // 关键修改：使用工具方法将选中时区的本地时间转为UTC时间戳
+                    const startTs = this.localTimeToUtcTimestamp(this.startTime);
+                    const endTs = this.localTimeToUtcTimestamp(this.endTime);
+
+                    // 验证时间转换结果
+                    if (!startTs || !endTs) {
+                        alert('时间格式无效，请检查输入！');
+                        return;
+                    }
 
                     if (startTs > endTs) {
                         alert('开始时间不能晚于结束时间！');
