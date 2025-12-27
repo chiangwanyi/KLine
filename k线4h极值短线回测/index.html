@@ -189,7 +189,7 @@
             opacity: 0;
             transition: opacity 0.2s ease;
             min-width: 180px;
-            max-width: 220px;
+            max-width: 500px;
             box-sizing: border-box;
         }
 
@@ -332,8 +332,12 @@
             <div class="kline-tooltip" ref="tooltipEl"
                 :style="{ top: tooltipPos.top + 'px', left: tooltipPos.left + 'px', opacity: tooltipPos.opacity }">
                 <div class="tooltip-item" v-if="currentKline">
-                    <span class="tooltip-label">时间</span>
+                    <span class="tooltip-label">时区时间</span>
                     <span class="tooltip-value">{{ formatUtcToSelectedTimezone(currentKline.time) }}</span>
+                </div>
+                <div class="tooltip-item" v-if="currentKline"> 
+                    <span class="tooltip-label">本地时间</span>
+                    <span class="tooltip-value">{{ formatUtcToLocalTime(currentKline.time) }}</span>
                 </div>
                 <div class="tooltip-item" v-if="currentKline">
                     <span class="tooltip-label">开盘</span>
@@ -433,6 +437,23 @@
                     const date = new Date(utcTimestamp * 1000);
                     return new Intl.DateTimeFormat('zh-CN', {
                         timeZone: this.timezone,
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit'
+                    }).format(date);
+                },
+
+                /**
+                 * 格式化时间（转换为UTC+8时间）
+                 */
+                formatUtcToLocalTime(utcTimestamp) {
+                    if (!utcTimestamp) return '';
+                    const date = new Date(utcTimestamp * 1000);
+                    return new Intl.DateTimeFormat('zh-CN', {
+                        timeZone: "Asia/Shanghai",
                         year: 'numeric',
                         month: '2-digit',
                         day: '2-digit',
