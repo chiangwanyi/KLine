@@ -1,7 +1,7 @@
 # server.py
-from fastapi import FastAPI, Query
-from fastapi.middleware.cors import CORSMiddleware
-import requests
+from fastapi import FastAPI, Query # type: ignore
+from fastapi.middleware.cors import CORSMiddleware # type: ignore
+import requests # type: ignore
 from typing import Dict, Tuple
 
 app = FastAPI()
@@ -76,5 +76,5 @@ def get_klines(
 
 
 if __name__ == "__main__":
-    import uvicorn
+    import uvicorn # type: ignore
     uvicorn.run("server:app", host="127.0.0.1", port=8001, reload=True)
