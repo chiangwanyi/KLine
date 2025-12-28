@@ -377,10 +377,13 @@
 
                     // ===== 合约模拟相关 =====
                     positionSide: 'long', // long | short
+                    // 下单数量
                     simQty: 0.001,
+                    // 杠杆
                     simLeverage: 120,
                     simEntryPrice: null,
                     simMargin: null,
+                    // 爆仓价（强平价格）
                     simLiqPrice: null,
 
                     entryLine: null,
@@ -989,7 +992,8 @@
                             (price * qty + this.simMargin) /
                             (qty * (1 + mmr));
                     }
-
+                    this.simStopPrice = (this.simEntryPrice + this.simLiqPrice) / 2;
+                    this.recalcTPByRR();
                     this.drawSimLines();
                 },
 
@@ -1079,6 +1083,7 @@
 
                     this.recalcPnL();
                 },
+
                 recalcPnL() {
                     if (!this.simTakePrice || !this.simStopPrice) return;
 
