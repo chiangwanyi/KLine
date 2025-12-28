@@ -163,17 +163,21 @@
                             class="w-full bg-primary text-text border border-border px-2 py-1 rounded text-xs">
                     </div>
                 </div>
+                <div v-if="simEntryPrice" class="grid grid-cols-2 gap-2 mb-2">
+                    <div>
+                        <span class="text-textLight text-xs mb-1 block">开仓价</span>
+                        <input type="number" v-model.number="simEntryPrice" @input="recalcSim"
+                            class="w-full bg-primary text-text border border-border px-2 py-1 rounded text-xs">
+                    </div>
+                    <div>
+                        <span class="text-textLight text-xs mb-1 block">保证金（USDT）</span>
+                        <input type="number" v-model.number="simMargin"
+                            class="w-full bg-primary text-text border border-border px-2 py-1 rounded text-xs">
+                    </div>
+                </div>
 
                 <!-- 结果 -->
                 <div v-if="simEntryPrice" class="mt-3 pt-2 border-t border-border text-xs">
-                    <div class="flex justify-between mb-1">
-                        <span class="text-textLight">开仓价</span>
-                        <span class="text-textHighlight">{{ simEntryPrice.toFixed(2) }}</span>
-                    </div>
-                    <div class="flex justify-between mb-1">
-                        <span class="text-textLight">保证金</span>
-                        <span class="text-textHighlight">{{ simMargin.toFixed(2) }} USDT</span>
-                    </div>
                     <div class="flex justify-between">
                         <span class="text-textLight">预估强平价</span>
                         <span class="text-down">{{ simLiqPrice.toFixed(2) }}</span>
