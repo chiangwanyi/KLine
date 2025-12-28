@@ -123,29 +123,28 @@
                 <h3 class="text-textHighlight text-sm mb-2 pb-2 border-b border-border">
                     合约计算器（模拟）
                 </h3>
-
-                <!-- 方向 -->
-                <div class="mb-2">
-                    <label class="text-textLight text-xs mb-1 block">方向</label>
-                    <select v-model="positionSide"
-                        class="w-full bg-primary text-text border border-border px-2 py-1 rounded text-xs">
-                        <option value="long">开多</option>
-                        <option value="short">开空</option>
-                    </select>
-                </div>
-
-                <!-- 数量 -->
-                <div class="mb-2">
-                    <label class="text-textLight text-xs mb-1 block">数量（BTC）</label>
-                    <input type="number" step="0.0001" v-model.number="simQty" @input="recalcSim"
-                        class="w-full bg-primary text-text border border-border px-2 py-1 rounded text-xs">
-                </div>
-
-                <!-- 杠杆 -->
-                <div class="mb-2">
-                    <label class="text-textLight text-xs mb-1 block">杠杆</label>
-                    <input type="number" min="1" max="100" v-model.number="simLeverage" @input="recalcSim"
-                        class="w-full bg-primary text-text border border-border px-2 py-1 rounded text-xs">
+                <div class="grid grid-cols-3 gap-3 mb-3">
+                    <!-- 方向 -->
+                    <div>
+                        <label class="text-textLight text-xs mb-1 block">方向</label>
+                        <select v-model="positionSide"
+                            class="w-full bg-primary text-text border border-border px-2 py-1 rounded text-xs">
+                            <option value="long">开多</option>
+                            <option value="short">开空</option>
+                        </select>
+                    </div>
+                    <!-- 数量 -->
+                    <div>
+                        <label class="text-textLight text-xs mb-1 block">数量（BTC）</label>
+                        <input type="number" step="0.0001" v-model.number="simQty" @input="recalcSim"
+                            class="w-full bg-primary text-text border border-border px-2 py-1 rounded text-xs">
+                    </div>
+                    <!-- 杠杆 -->
+                    <div>
+                        <label class="text-textLight text-xs mb-1 block">杠杆</label>
+                        <input type="number" min="1" max="100" v-model.number="simLeverage" @input="recalcSim"
+                            class="w-full bg-primary text-text border border-border px-2 py-1 rounded text-xs">
+                    </div>
                 </div>
                 <div class="mb-2">
                     <label class="text-textLight text-xs mb-1 block">止损价</label>
@@ -212,30 +211,33 @@
                         <label :for="'showEma' + ema.id" class="text-textLight text-xs">显示EMA {{ ema.length }}</label>
                     </div>
 
-                    <div class="flex gap-2 items-center">
-                        <div class="w-1/4">
+                    <div class="grid grid-cols-4 gap-4 mb-4">
+                        <div>
                             <label class="text-textLight text-xs block mb-1">周期</label>
                             <input type="number" v-model.number="ema.length" @input="updateIndicators" min="1"
-                                class="w-full bg-primary text-text border border-border px-2 py-1 rounded text-xs focus:outline-none focus:border-[#64748b]">
+                                class="w-full bg-primary text-text border border-border px-2 py-1 rounded text-xs">
                         </div>
-                        <div class="w-3/4">
-                            <label class="text-textLight text-xs block mb-1">颜色 & 透明度</label>
-                            <div class="flex items-center gap-2">
-                                <input type="color" v-model="ema.colorHex" @change="updateEmaRgba(ema)"
-                                    class="color-input bg-primary border border-border rounded flex-0 w-7">
-                                <input type="number" v-model.number="ema.opacity" min="0" max="1" step="0.1"
-                                    @change="updateEmaRgba(ema)"
-                                    class="flex-1 bg-primary text-text border border-border px-2 py-1 rounded text-xs focus:outline-none focus:border-[#64748b] placeholder:text-textLight"
-                                    placeholder="透明度">
-                            </div>
+                        <div>
+                            <label class="text-textLight text-xs block mb-1">颜色</label>
+                            <input type="color" v-model="ema.colorHex" @change="updateEmaRgba(ema)"
+                                class="w-full bg-primary text-text border border-border px-2 py-1 rounded text-xs">
+                        </div>
+                        <div>
+                            <label class="text-textLight text-xs block mb-1">透明度</label>
+                            <input type="number" v-model.number="ema.opacity" min="0" max="1" step="0.1"
+                                @change="updateEmaRgba(ema)"
+                                class="w-full bg-primary text-text border border-border px-2 py-1 rounded text-xs"
+                                placeholder="透明度">
+                        </div>
+                        <div>
+                            <label class="text-textLight text-xs block mb-1">操作</label>
+                            <button
+                                class="w-full bg-primary text-text border border-border px-2 py-1 rounded text-xs"
+                                @click="removeEma(i)">
+                                删除
+                            </button>
                         </div>
                     </div>
-
-                    <button
-                        class="mt-2 bg-primary border border-border hover:bg-border text-xs px-2 py-1 rounded cursor-pointer"
-                        @click="removeEma(i)">
-                        删除
-                    </button>
                 </div>
 
                 <button @click="addEma"
