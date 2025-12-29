@@ -149,7 +149,7 @@
                 <div class="grid grid-cols-3 gap-3 mb-3">
                     <div>
                         <label class="text-textLight text-xs mb-1 block">止损价</label>
-                        <input type="number" v-model.number="simStopPrice" @input="recalcTPByRR"
+                        <input type="number" step="10" v-model.number="simStopPrice" @input="recalcTPByRR"
                             class="w-full bg-primary text-text border border-border px-2 py-1 rounded text-xs">
                     </div>
                     <div>
@@ -406,9 +406,9 @@
                     // ===== 合约模拟相关 =====
                     positionSide: 'long', // long | short
                     // 下单数量
-                    simQty: 0.001,
+                    simQty: 0.01,
                     // 杠杆
-                    simLeverage: 120,
+                    simLeverage: 60,
                     // 开仓价
                     simEntryPrice: null,
                     // 初始保证金
@@ -439,7 +439,7 @@
 
                     // ===== 止盈止损 & 手续费 =====
                     simStopPrice: null,        // 止损价（可手动改）
-                    simRR: 1.5,                // 盈亏比，默认 1:1.5
+                    simRR: 2,                // 盈亏比，默认 1:1.5
                     simTakePrice: null,        // 止盈价（可手动改）
 
                     // 盈亏结果
