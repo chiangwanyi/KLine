@@ -27,6 +27,7 @@
                         textLight: '#94a3b8',
                         textHighlight: '#cbd5f5',
                         up: '#22c55e',
+                        warning: '#f59e0b',
                         down: '#ef4444',
                     },
                     fontFamily: {
@@ -166,17 +167,17 @@
                 <div class="grid grid-cols-3 gap-3 mb-3">
                     <div>
                         <span class="text-textLight text-xs mb-1 block">挂单手续费率</span>
-                        <input type="number" step="0.01" v-model.number="feeMaker"
+                        <input type="number" step="0.01" disabled v-model.number="feeMaker"
                             class="w-full bg-primary text-text border border-border px-2 py-1 rounded text-xs">
                     </div>
                     <div>
                         <span class="text-textLight text-xs mb-1 block">吃单手续费率</span>
-                        <input type="number" step="0.01" v-model.number="feeTaker"
+                        <input type="number" step="0.01" disabled v-model.number="feeTaker"
                             class="w-full bg-primary text-text border border-border px-2 py-1 rounded text-xs">
                     </div>
                     <div>
                         <span class="text-textLight text-xs mb-1 block">维持保证金率</span>
-                        <input type="number" v-model.number="mmr"
+                        <input type="number" disabled v-model.number="mmr"
                             class="w-full bg-primary text-text border border-border px-2 py-1 rounded text-xs">
                     </div>
                 </div>
@@ -203,10 +204,22 @@
                         <span>{{ simEntryPrice.toFixed(2) }}</span>
                     </div>
                     <div class="flex justify-between">
+                        <span class="text-textLight">止损价</span>
+                        <span class="text-warning">{{ simStopPrice.toFixed(2) }}</span>
+                    </div>
+                    <div class="flex justify-between">
                         <span class="text-textLight">预估强平价</span>
                         <span class="text-down">{{ simLiqPrice.toFixed(2) }}</span>
                     </div>
                     <div class="mt-2 pt-2 border-t border-border">
+                        <div class="flex justify-between text-[11px] opacity-70">
+                            <span>挂单手续费</span>
+                            <span>{{ openFeeMaker?.toFixed(4) }} USDT</span>
+                        </div>
+                        <div class="flex justify-between text-[11px] opacity-70">
+                            <span>吃单手续费</span>
+                            <span>{{ openFeeTaker?.toFixed(4) }} USDT</span>
+                        </div>
                         <div class="flex justify-between">
                             <span class="text-textLight">止盈净盈利</span>
                             <span class="text-up">
@@ -218,10 +231,6 @@
                             <span class="text-down">
                                 {{ simPnLSLNet?.toFixed(4) }} USDT
                             </span>
-                        </div>
-                        <div class="flex justify-between text-[11px] opacity-70">
-                            <span>手续费</span>
-                            <span>{{ simFeeTP?.toFixed(4) }} USDT</span>
                         </div>
                     </div>
 
@@ -375,8 +384,8 @@
 
                     // 核心配置项
                     symbol: 'BTCUSDT',
-                    interval: '1m',
-                    timezone: 'UTC',
+                    interval: '5m',
+                    timezone: 'America/New_York',
                     startTime: '',
                     endTime: '',
                     selectedDate: '',
@@ -384,9 +393,9 @@
                     // 凌晨时段高低点配置（支持16进制颜色+透明度）
                     earlyHigh: null,
                     earlyLow: null,
-                    earlyHighColorHex: '#ffd700', // 金色默认
+                    earlyHighColorHex: '#cc1efd', // 金色默认
                     earlyHighOpacity: 0.7,
-                    earlyHighRgba: 'rgba(255, 215, 0, 0.7)',
+                    earlyHighRgba: 'rgba(223,141,237,0.7)',
                     earlyLowColorHex: '#00ffff', // 青色默认
                     earlyLowOpacity: 0.7,
                     earlyLowRgba: 'rgba(0, 255, 255, 0.7)',
@@ -428,7 +437,9 @@
                     isolatedEquity: 0,
                     currentMMR: 0,
 
+                    // 挂单手续费
                     openFeeMaker: 0,
+                    // 吃单手续费
                     openFeeTaker: 0,
                     closeFeeMaker: 0,
                     closeFeeTaker: 0,
@@ -1016,15 +1027,21 @@
                     if (this.klines.length > 0) this.chart.timeScale().fitContent();
                 },
 
+                /**
+                 * 模拟交易
+                 */
                 recalcSim() {
                     if (!this.simEntryPrice || !this.simQty || !this.simLeverage) return;
 
+                    // 开仓价
                     const price = this.simEntryPrice;
+                    // 数量
                     const qty = this.simQty;
+                    // 杠杆
                     const lev = this.simLeverage;
-                    const mmr = 0.005;
-
-                    // 保证金
+                    // 维持保证金率
+                    const mmr = this.mmr;
+                    // 初始保证金
                     this.simMargin = (price * qty) / lev;
 
                     // 强平价
@@ -1052,7 +1069,7 @@
 
                     // 开仓价线
                     this.entryLine = this.chart.addSeries(LightweightCharts.LineSeries, {
-                        color: '#22c55e',
+                        color: '#a7eec0',
                         lineWidth: 2,
                         crosshairMarkerVisible: false,
                         title: '开仓价线',
@@ -1087,7 +1104,7 @@
 
                     // 止损线（红）
                     this.stopLine = this.chart.addSeries(LightweightCharts.LineSeries, {
-                        color: '#ef4444',
+                        color: '#f59e0b',
                         lineWidth: 2,
                         lineStyle: LightweightCharts.LineStyle.Dashed,
                         title: '止损价'
