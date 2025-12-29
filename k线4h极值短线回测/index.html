@@ -137,30 +137,30 @@
                     <!-- 数量 -->
                     <div>
                         <label class="text-textLight text-xs mb-1 block">数量（BTC）</label>
-                        <input type="number" step="0.0001" v-model.number="simQty" @input="recalcSim"
+                        <input type="number" step="0.0001" v-model.number="simQty" @input="calcContractSim"
                             class="w-full bg-primary text-text border border-border px-2 py-1 rounded text-xs">
                     </div>
                     <!-- 杠杆 -->
                     <div>
                         <label class="text-textLight text-xs mb-1 block">杠杆</label>
-                        <input type="number" min="1" max="100" v-model.number="simLeverage" @input="recalcSim"
+                        <input type="number" min="1" max="100" v-model.number="simLeverage" @input="calcContractSim"
                             class="w-full bg-primary text-text border border-border px-2 py-1 rounded text-xs">
                     </div>
                 </div>
                 <div class="grid grid-cols-3 gap-3 mb-3">
                     <div>
                         <label class="text-textLight text-xs mb-1 block">止损价</label>
-                        <input type="number" step="10" v-model.number="simStopPrice" @input="recalcTPByRR"
+                        <input type="number" step="10" v-model.number="simStopPrice" @input="calcContractSim"
                             class="w-full bg-primary text-text border border-border px-2 py-1 rounded text-xs">
                     </div>
                     <div>
                         <label class="text-textLight text-xs mb-1 block">止盈价</label>
-                        <input type="number" v-model.number="simTakePrice" @input="recalcPnL"
+                        <input type="number" v-model.number="simTakePrice" @input="calcContractSim"
                             class="w-full bg-primary text-text border border-border px-2 py-1 rounded text-xs">
                     </div>
                     <div>
                         <label class="text-textLight text-xs mb-1 block">盈亏比</label>
-                        <input type="number" step="0.1" v-model.number="simRR" @input="recalcTPByRR"
+                        <input type="number" step="0.1" v-model.number="simRR" @input="calcContractSim"
                             class="w-full bg-primary text-text border border-border px-2 py-1 rounded text-xs">
                     </div>
                 </div>
@@ -184,7 +184,7 @@
                 <div v-if="simEntryPrice" class="grid grid-cols-2 gap-2 mb-2">
                     <div>
                         <span class="text-textLight text-xs mb-1 block">开仓价</span>
-                        <input type="number" v-model.number="simEntryPrice" @input="recalcSim"
+                        <input type="number" v-model.number="simEntryPrice" @input="calcContractSim"
                             class="w-full bg-primary text-text border border-border px-2 py-1 rounded text-xs">
                     </div>
                     <div>
@@ -600,7 +600,8 @@
                         if (!k) return;
 
                         this.simEntryPrice = k.open;
-                        this.recalcSim();
+                        this.simStopPrice = null; // 重置，防止旧 SL 污染
+                        this.calcContractSim();
                     });
                 },
 
@@ -1028,24 +1029,23 @@
                 },
 
                 /**
-                 * 合约计算
+                 * 合约计算器（唯一计算入口）
+                 * UI 的所有输入变化都只能调用这个方法
                  */
-                recalcSim() {
+                calcContractSim() {
                     if (!this.simEntryPrice || !this.simQty || !this.simLeverage) return;
 
-                    // 开仓价
                     const price = this.simEntryPrice;
-                    // 数量
                     const qty = this.simQty;
-                    // 杠杆
                     const lev = this.simLeverage;
-                    // 维持保证金率
                     const mmr = this.mmr;
-                    // 初始保证金
+                    const side = this.positionSide;
+
+                    /* ========= 1️⃣ 初始保证金 ========= */
                     this.simMargin = (price * qty) / lev;
 
-                    // 强平价
-                    if (this.positionSide === 'long') {
+                    /* ========= 2️⃣ 强平价 ========= */
+                    if (side === 'long') {
                         this.simLiqPrice =
                             (price * qty - this.simMargin) /
                             (qty * (1 - mmr));
@@ -1054,9 +1054,48 @@
                             (price * qty + this.simMargin) /
                             (qty * (1 + mmr));
                     }
-                    this.simStopPrice = (this.simEntryPrice + this.simLiqPrice) / 2;
-                    this.recalcTPByRR();
+
+                    /* ========= 3️⃣ 止损价（允许手动覆盖） ========= */
+                    if (!this.simStopPrice) {
+                        this.simStopPrice = (price + this.simLiqPrice) / 2;
+                    }
+
+                    /* ========= 4️⃣ 止盈价（RR） ========= */
+                    const risk = side === 'long'
+                        ? price - this.simStopPrice
+                        : this.simStopPrice - price;
+
+                    if (risk > 0) {
+                        this.simTakePrice = side === 'long'
+                            ? price + risk * this.simRR
+                            : price - risk * this.simRR;
+                    }
+
+                    /* ========= 5️⃣ 盈亏 & 手续费 ========= */
+                    const feeOpen = price * qty * this.feeTaker;
+
+                    // --- 止盈 ---
+                    const pnlTP = side === 'long'
+                        ? (this.simTakePrice - price) * qty
+                        : (price - this.simTakePrice) * qty;
+
+                    const feeCloseTP = this.simTakePrice * qty * this.feeTaker;
+                    this.simPnLTP = pnlTP;
+                    this.simFeeTP = feeOpen + feeCloseTP;
+                    this.simPnLTPNet = pnlTP - this.simFeeTP;
+
+                    // --- 止损 ---
+                    const pnlSL = side === 'long'
+                        ? (this.simStopPrice - price) * qty
+                        : (price - this.simStopPrice) * qty;
+
+                    const feeCloseSL = this.simStopPrice * qty * this.feeTaker;
+                    this.simPnLSL = pnlSL;
+                    this.simPnLSLNet = pnlSL - (feeOpen + feeCloseSL);
+
+                    /* ========= 6️⃣ 图表线 ========= */
                     this.drawSimLines();
+                    this.drawTPSLLines();
                 },
 
                 drawSimLines() {
@@ -1126,57 +1165,6 @@
                         { time: end, value: this.simTakePrice }
                     ]);
                 },
-
-                recalcTPByRR() {
-                    if (!this.simEntryPrice || !this.simStopPrice) return;
-
-                    const entry = this.simEntryPrice;
-                    const sl = this.simStopPrice;
-
-                    const risk = this.positionSide === 'long'
-                        ? entry - sl
-                        : sl - entry;
-
-                    if (risk <= 0) return;
-
-                    this.simTakePrice = this.positionSide === 'long'
-                        ? entry + risk * this.simRR
-                        : entry - risk * this.simRR;
-
-                    this.recalcPnL();
-                },
-
-                recalcPnL() {
-                    if (!this.simTakePrice || !this.simStopPrice) return;
-
-                    const qty = this.simQty;
-                    const entry = this.simEntryPrice;
-
-                    // === 止盈 ===
-                    const pnlTP = this.positionSide === 'long'
-                        ? (this.simTakePrice - entry) * qty
-                        : (entry - this.simTakePrice) * qty;
-
-                    const feeOpen = entry * qty * this.feeTaker;
-                    const feeCloseTP = this.simTakePrice * qty * this.feeTaker;
-
-                    this.simPnLTP = pnlTP;
-                    this.simFeeTP = feeOpen + feeCloseTP;
-                    this.simPnLTPNet = pnlTP - this.simFeeTP;
-
-                    // === 止损 ===
-                    const pnlSL = this.positionSide === 'long'
-                        ? (this.simStopPrice - entry) * qty
-                        : (entry - this.simStopPrice) * qty;
-
-                    const feeCloseSL = this.simStopPrice * qty * this.feeTaker;
-
-                    this.simPnLSL = pnlSL;
-                    this.simPnLSLNet = pnlSL - (feeOpen + feeCloseSL);
-
-                    this.drawTPSLLines();
-                },
-
             }
         }).mount('#app');
     </script>
