@@ -155,7 +155,7 @@
                     </div>
                     <div>
                         <label class="text-textLight text-xs mb-1 block">止盈价</label>
-                        <input type="number" v-model.number="simTakePrice" @input="calcContractSim"
+                        <input type="number" step="10" v-model.number="simTakePrice" @input="calcContractSim"
                             class="w-full bg-primary text-text border border-border px-2 py-1 rounded text-xs">
                     </div>
                     <div>
@@ -213,15 +213,37 @@
                     </div>
                     <div class="mt-2 pt-2 border-t border-border">
                         <div class="flex justify-between text-[11px] opacity-70">
-                            <span>挂单手续费</span>
+                            <span>挂单开仓手续费</span>
                             <span>{{ openFeeMaker?.toFixed(4) }} USDT</span>
                         </div>
                         <div class="flex justify-between text-[11px] opacity-70">
-                            <span>吃单手续费</span>
+                            <span>吃单开仓手续费</span>
                             <span>{{ openFeeTaker?.toFixed(4) }} USDT</span>
                         </div>
+                        <div class="flex justify-between text-[11px] opacity-70">
+                            <span>挂单止盈平仓手续费</span>
+                            <span>{{ closeWinFeeMaker?.toFixed(4) }} USDT</span>
+                        </div>
+                        <div class="flex justify-between text-[11px] opacity-70">
+                            <span>吃单止盈平仓手续费</span>
+                            <span>{{ closeWinFeeTaker?.toFixed(4) }} USDT</span>
+                        </div>
+                        <div class="flex justify-between text-[11px] opacity-70">
+                            <span>挂单止损平仓手续费</span>
+                            <span>{{ closeLossFeeMaker?.toFixed(4) }} USDT</span>
+                        </div>
+                        <div class="flex justify-between text-[11px] opacity-70">
+                            <span>吃单止损平仓手续费</span>
+                            <span>{{ closeLossFeeTaker?.toFixed(4) }} USDT</span>
+                        </div>
+<!--                        <div class="flex justify-between">-->
+<!--                            <span class="text-textLight">止盈收益（未扣除手续费）</span>-->
+<!--                            <span class="text-up">-->
+<!--                                {{ simPnLTP?.toFixed(4) }} USDT-->
+<!--                            </span>-->
+<!--                        </div>-->
                         <div class="flex justify-between">
-                            <span class="text-textLight">止盈净盈利</span>
+                            <span class="text-textLight">止盈盈利（挂开+吃平）</span>
                             <span class="text-up">
                                 {{ simPnLTPNet?.toFixed(4) }} USDT
                             </span>
@@ -437,13 +459,18 @@
                     isolatedEquity: 0,
                     currentMMR: 0,
 
-                    // 挂单手续费
+                    // 挂单开仓手续费
                     openFeeMaker: 0,
-                    // 吃单手续费
+                    // 吃单开仓手续费
                     openFeeTaker: 0,
-                    closeFeeMaker: 0,
-                    closeFeeTaker: 0,
-
+                    // 挂单止盈平仓手续费
+                    closeWinFeeMaker: 0,
+                    // 吃单止盈平仓手续费
+                    closeWinFeeTaker: 0,
+                    // 挂单止损平仓手续费
+                    closeLossFeeMaker: 0,
+                    // 吃单止损平仓手续费
+                    closeLossFeeTaker: 0,
 
                     entryLine: null,
                     liqLine: null,
@@ -452,14 +479,9 @@
                     simStopPrice: null,        // 止损价（可手动改）
                     simRR: 2,                // 盈亏比，默认 1:1.5
                     simTakePrice: null,        // 止盈价（可手动改）
-
-                    // 盈亏结果
                     simPnLTP: null,            // 止盈毛盈利
                     simPnLTPNet: null,         // 止盈净盈利
-                    simPnLSL: null,            // 止损毛亏损
                     simPnLSLNet: null,         // 止损净亏损
-                    simFeeTP: null,            // 止盈手续费
-                    simFeeSL: null,            // 止损手续费
 
                     // 图表线
                     stopLine: null,
@@ -601,6 +623,7 @@
 
                         this.simEntryPrice = k.open;
                         this.simStopPrice = null; // 重置，防止旧 SL 污染
+                        this.simTakePrice = null;
                         this.calcContractSim();
                     });
                 },
@@ -1061,37 +1084,49 @@
                     }
 
                     /* ========= 4️⃣ 止盈价（RR） ========= */
-                    const risk = side === 'long'
-                        ? price - this.simStopPrice
-                        : this.simStopPrice - price;
+                    if (!this.simTakePrice) {
+                        const risk = side === 'long'
+                            ? price - this.simStopPrice
+                            : this.simStopPrice - price;
 
-                    if (risk > 0) {
-                        this.simTakePrice = side === 'long'
-                            ? price + risk * this.simRR
-                            : price - risk * this.simRR;
+                        if (risk > 0) {
+                            this.simTakePrice = side === 'long'
+                                ? price + risk * this.simRR
+                                : price - risk * this.simRR;
+                        }
                     }
 
-                    /* ========= 5️⃣ 盈亏 & 手续费 ========= */
+                    /* ========= 5️⃣ 手续费 ========= */
+                    // 挂单开仓手续费
+                    this.openFeeMaker = this.simEntryPrice * qty * this.feeMaker;
+                    // 吃单开仓手续费
+                    this.openFeeTaker = this.simEntryPrice * qty * this.feeTaker;
+                    // 挂单止盈平仓手续费
+                    this.closeWinFeeMaker = this.simTakePrice * qty * this.feeMaker;
+                    // 吃单止盈平仓手续费
+                    this.closeWinFeeTaker = this.simTakePrice * qty * this.feeTaker;
+                    // 挂单止损平仓手续费
+                    this.closeLossFeeMaker = this.simStopPrice * qty * this.feeMaker;
+                    // 吃单止损平仓手续费
+                    this.closeLossFeeTaker = this.simStopPrice * qty * this.feeTaker;
+
                     const feeOpen = price * qty * this.feeTaker;
 
                     // --- 止盈 ---
                     const pnlTP = side === 'long'
                         ? (this.simTakePrice - price) * qty
                         : (price - this.simTakePrice) * qty;
-
-                    const feeCloseTP = this.simTakePrice * qty * this.feeTaker;
+                    // 止盈收益（未扣除手续费）
                     this.simPnLTP = pnlTP;
-                    this.simFeeTP = feeOpen + feeCloseTP;
-                    this.simPnLTPNet = pnlTP - this.simFeeTP;
+                    // 止盈盈利（扣除挂单开仓和吃单平仓手续费）
+                    this.simPnLTPNet = pnlTP - this.openFeeMaker - this.closeWinFeeTaker;
 
                     // --- 止损 ---
                     const pnlSL = side === 'long'
                         ? (this.simStopPrice - price) * qty
                         : (price - this.simStopPrice) * qty;
 
-                    const feeCloseSL = this.simStopPrice * qty * this.feeTaker;
-                    this.simPnLSL = pnlSL;
-                    this.simPnLSLNet = pnlSL - (feeOpen + feeCloseSL);
+                    this.simPnLSLNet = pnlSL - this.openFeeMaker - this.closeLossFeeTaker;
 
                     /* ========= 6️⃣ 图表线 ========= */
                     this.drawSimLines();
