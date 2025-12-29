@@ -2,8 +2,8 @@
 <html lang="zh">
 
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>K线 + 技术指标（Vue3 + Lightweight Charts）</title>
 
     <!-- Vue 3 -->
@@ -43,12 +43,15 @@
             .content-auto {
                 content-visibility: auto;
             }
+
             .scrollbar-thin {
                 scrollbar-width: thin;
             }
+
             .scrollbar-thumb-color {
                 scrollbar-color: #334155 #020617;
             }
+
             .color-input {
                 padding: 2px;
                 height: 34px;
@@ -59,1150 +62,1271 @@
 </head>
 
 <body class="bg-primary text-text font-sans min-h-screen m-0 p-0">
-    <div id="app" class="flex h-screen overflow-hidden">
-        <!-- 左侧功能区 - 更紧凑的布局 -->
-        <div
-            class="left w-[320px] bg-secondary p-2 overflow-y-auto border-r border-border scrollbar-thin scrollbar-thumb-color">
-            <!-- 参数设置面板 -->
-            <div class="panel border border-border mb-3 p-3 rounded bg-secondary/80">
-                <h3 class="text-textHighlight text-sm mb-2 pb-2 border-b border-border">参数设置</h3>
+<div id="app" class="flex h-screen overflow-hidden">
+    <!-- 左侧功能区 - 更紧凑的布局 -->
+    <div class="left w-[320px] bg-secondary p-2 overflow-y-auto border-r border-border scrollbar-thin scrollbar-thumb-color">
+        <!-- 参数设置面板 -->
+        <div class="panel border border-border mb-3 p-3 rounded bg-secondary/80">
+            <h3 class="text-textHighlight text-sm mb-2 pb-2 border-b border-border">参数设置</h3>
 
-                <div class="mb-2">
-                    <label class="text-textLight text-xs block mb-1">合约 Symbol</label>
-                    <input v-model="symbol"
-                        class="w-full bg-primary text-text border border-border px-2 py-1.5 rounded text-xs focus:outline-none focus:border-[#64748b]">
+            <div class="mb-2">
+                <label class="text-textLight text-xs block mb-1">合约 Symbol</label>
+                <input v-model="symbol"
+                       class="w-full bg-primary text-text border border-border px-2 py-1.5 rounded text-xs focus:outline-none focus:border-[#64748b]">
+            </div>
+
+            <div class="grid grid-cols-2 gap-2 mb-2">
+                <div>
+                    <label class="text-textLight text-xs block mb-1">开始时间</label>
+                    <input type="datetime-local" v-model="startTime"
+                           class="w-full bg-primary text-text border border-border px-2 py-1.5 rounded text-xs focus:outline-none focus:border-[#64748b]">
                 </div>
-
-                <div class="grid grid-cols-2 gap-2 mb-2">
-                    <div>
-                        <label class="text-textLight text-xs block mb-1">开始时间</label>
-                        <input type="datetime-local" v-model="startTime"
-                            class="w-full bg-primary text-text border border-border px-2 py-1.5 rounded text-xs focus:outline-none focus:border-[#64748b]">
-                    </div>
-                    <div>
-                        <label class="text-textLight text-xs block mb-1">结束时间</label>
-                        <input type="datetime-local" v-model="endTime"
-                            class="w-full bg-primary text-text border border-border px-2 py-1.5 rounded text-xs focus:outline-none focus:border-[#64748b]">
-                    </div>
+                <div>
+                    <label class="text-textLight text-xs block mb-1">结束时间</label>
+                    <input type="datetime-local" v-model="endTime"
+                           class="w-full bg-primary text-text border border-border px-2 py-1.5 rounded text-xs focus:outline-none focus:border-[#64748b]">
                 </div>
+            </div>
 
-                <div class="mb-2">
-                    <label class="text-textLight text-xs block mb-1">快速选择日期</label>
-                    <input type="date" v-model="selectedDate" @change="fillDay"
-                        class="w-full bg-primary text-text border border-border px-2 py-1.5 rounded text-xs focus:outline-none focus:border-[#64748b]">
-                </div>
+            <div class="mb-2">
+                <label class="text-textLight text-xs block mb-1">快速选择日期</label>
+                <input type="date" v-model="selectedDate" @change="fillDay"
+                       class="w-full bg-primary text-text border border-border px-2 py-1.5 rounded text-xs focus:outline-none focus:border-[#64748b]">
+            </div>
 
-                <div class="grid grid-cols-2 gap-2 mb-2">
-                    <div>
-                        <label class="text-textLight text-xs block mb-1">K线周期</label>
-                        <select v-model="interval" @change="handleIntervalChange"
+            <div class="grid grid-cols-2 gap-2 mb-2">
+                <div>
+                    <label class="text-textLight text-xs block mb-1">K线周期</label>
+                    <select v-model="interval" @change="handleIntervalChange"
                             class="w-full bg-primary text-text border border-border px-2 py-1.5 rounded text-xs focus:outline-none focus:border-[#64748b]">
-                            <option>1m</option>
-                            <option>5m</option>
-                            <option>1h</option>
-                            <option>4h</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="text-textLight text-xs block mb-1">时区</label>
-                        <select v-model="timezone" @change="updateChartTimeFormatter"
-                            class="w-full bg-primary text-text border border-border px-2 py-1.5 rounded text-xs focus:outline-none focus:border-[#64748b]">
-                            <option value="UTC">UTC</option>
-                            <option value="Asia/Shanghai">上海</option>
-                            <option value="America/New_York">纽约</option>
-                        </select>
-                    </div>
+                        <option>1m</option>
+                        <option>5m</option>
+                        <option>1h</option>
+                        <option>4h</option>
+                    </select>
                 </div>
+                <div>
+                    <label class="text-textLight text-xs block mb-1">时区</label>
+                    <select v-model="timezone" @change="updateChartTimeFormatter"
+                            class="w-full bg-primary text-text border border-border px-2 py-1.5 rounded text-xs focus:outline-none focus:border-[#64748b]">
+                        <option value="UTC">UTC</option>
+                        <option value="Asia/Shanghai">上海</option>
+                        <option value="America/New_York">纽约</option>
+                    </select>
+                </div>
+            </div>
 
-                <button @click="loadKlines"
+            <button @click="loadKlines"
                     class="w-full bg-border hover:bg-[#334155] transition-colors text-xs py-1.5 rounded cursor-pointer mt-1">
-                    请求K线数据
+                请求K线数据
+            </button>
+        </div>
+        <!-- 交易列表 -->
+        <div class="panel border border-border mb-3 p-3 rounded bg-secondary/80">
+            <h3 class="text-textHighlight text-sm mb-2 pb-2 border-b border-border">
+                交易列表
+            </h3>
+
+            <div v-for="g in tradeGroups" :key="g.id"
+                 class="border border-border p-2 mb-2 rounded text-xs"
+                 :class="g.id === activeTradeGroupId ? 'bg-primary' : ''">
+
+                <div class="flex justify-between items-center mb-1">
+                    <span class="font-bold">{{ g.name }}</span>
+                    <button class="text-up"
+                            @click="activateTradeGroup(g.id)">
+                        {{ g.id === activeTradeGroupId ? '激活中' : '激活' }}
+                    </button>
+                </div>
+
+                <div class="flex justify-between opacity-70">
+                    <span>初始资金</span>
+                    <span>{{ g.initialBalance.toFixed(2) }}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span>当前资金</span>
+                    <span :class="g.balance >= g.initialBalance ? 'text-up' : 'text-down'">
+        {{ g.balance.toFixed(2) }}
+      </span>
+                </div>
+
+                <button class="mt-1 w-full bg-border text-xs py-1 rounded"
+                        @click="removeTradeGroup(g.id)">
+                    删除
                 </button>
             </div>
-            <!-- 合约计算器 -->
-            <div class="panel border border-border p-3 rounded bg-secondary/80">
-                <h3 class="text-textHighlight text-sm mb-2 pb-2 border-b border-border">
-                    合约计算器（模拟）
-                </h3>
-                <div class="grid grid-cols-3 gap-3 mb-3">
-                    <!-- 方向 -->
-                    <div>
-                        <label class="text-textLight text-xs mb-1 block">方向</label>
-                        <select v-model="positionSide"
+
+            <button class="w-full bg-border text-xs py-1.5 rounded"
+                    @click="addTradeGroup">
+                + 新建交易组
+            </button>
+        </div>
+        <!-- 合约计算器 -->
+        <div class="panel border border-border p-3 rounded bg-secondary/80">
+            <h3 class="text-textHighlight text-sm mb-2 pb-2 border-b border-border">
+                合约计算器（模拟）
+            </h3>
+            <div class="grid grid-cols-3 gap-3 mb-3">
+                <!-- 方向 -->
+                <div>
+                    <label class="text-textLight text-xs mb-1 block">方向</label>
+                    <select v-model="positionSide"
                             class="w-full bg-primary text-text border border-border px-2 py-1 rounded text-xs">
-                            <option value="long">开多</option>
-                            <option value="short">开空</option>
-                        </select>
-                    </div>
-                    <!-- 数量 -->
-                    <div>
-                        <label class="text-textLight text-xs mb-1 block">数量（BTC）</label>
-                        <input type="number" step="0.0001" v-model.number="simQty" @input="calcContractSim"
-                            class="w-full bg-primary text-text border border-border px-2 py-1 rounded text-xs">
-                    </div>
-                    <!-- 杠杆 -->
-                    <div>
-                        <label class="text-textLight text-xs mb-1 block">杠杆</label>
-                        <input type="number" min="1" max="100" v-model.number="simLeverage" @input="calcContractSim"
-                            class="w-full bg-primary text-text border border-border px-2 py-1 rounded text-xs">
-                    </div>
+                        <option value="long">开多</option>
+                        <option value="short">开空</option>
+                    </select>
                 </div>
-                <div class="grid grid-cols-3 gap-3 mb-3">
-                    <div>
-                        <label class="text-textLight text-xs mb-1 block">止损价</label>
-                        <input type="number" step="10" v-model.number="simStopPrice" @input="calcContractSim"
-                            class="w-full bg-primary text-text border border-border px-2 py-1 rounded text-xs">
-                    </div>
-                    <div>
-                        <label class="text-textLight text-xs mb-1 block">止盈价</label>
-                        <input type="number" step="10" v-model.number="simTakePrice" @input="calcContractSim"
-                            class="w-full bg-primary text-text border border-border px-2 py-1 rounded text-xs">
-                    </div>
-                    <div>
-                        <label class="text-textLight text-xs mb-1 block">盈亏比</label>
-                        <input type="number" step="0.1" v-model.number="simRR" @input="calcContractSim"
-                            class="w-full bg-primary text-text border border-border px-2 py-1 rounded text-xs">
-                    </div>
+                <!-- 数量 -->
+                <div>
+                    <label class="text-textLight text-xs mb-1 block">数量（BTC）</label>
+                    <input type="number" step="0.0001" v-model.number="simQty" @input="calcContractSim"
+                           class="w-full bg-primary text-text border border-border px-2 py-1 rounded text-xs">
                 </div>
-                <div class="grid grid-cols-3 gap-3 mb-3">
-                    <div>
-                        <span class="text-textLight text-xs mb-1 block">挂单手续费率</span>
-                        <input type="number" step="0.01" disabled v-model.number="feeMaker"
-                            class="w-full bg-primary text-text border border-border px-2 py-1 rounded text-xs">
-                    </div>
-                    <div>
-                        <span class="text-textLight text-xs mb-1 block">吃单手续费率</span>
-                        <input type="number" step="0.01" disabled v-model.number="feeTaker"
-                            class="w-full bg-primary text-text border border-border px-2 py-1 rounded text-xs">
-                    </div>
-                    <div>
-                        <span class="text-textLight text-xs mb-1 block">维持保证金率</span>
-                        <input type="number" disabled v-model.number="mmr"
-                            class="w-full bg-primary text-text border border-border px-2 py-1 rounded text-xs">
-                    </div>
+                <!-- 杠杆 -->
+                <div>
+                    <label class="text-textLight text-xs mb-1 block">杠杆</label>
+                    <input type="number" min="1" max="100" v-model.number="simLeverage" @input="calcContractSim"
+                           class="w-full bg-primary text-text border border-border px-2 py-1 rounded text-xs">
                 </div>
-                <div v-if="simEntryPrice" class="grid grid-cols-2 gap-2 mb-2">
-                    <div>
-                        <span class="text-textLight text-xs mb-1 block">开仓价</span>
-                        <input type="number" v-model.number="simEntryPrice" @input="calcContractSim"
-                            class="w-full bg-primary text-text border border-border px-2 py-1 rounded text-xs">
-                    </div>
-                    <div>
-                        <span class="text-textLight text-xs mb-1 block">初始保证金（USDT）</span>
-                        <input type="number" v-model.number="simMargin"
-                            class="w-full bg-primary text-text border border-border px-2 py-1 rounded text-xs">
-                    </div>
+            </div>
+            <div class="grid grid-cols-3 gap-3 mb-3">
+                <div>
+                    <label class="text-textLight text-xs mb-1 block">止损价</label>
+                    <input type="number" step="10" v-model.number="simStopPrice" @input="calcContractSim"
+                           class="w-full bg-primary text-text border border-border px-2 py-1 rounded text-xs">
                 </div>
-                <!-- 结果 -->
-                <div v-if="simEntryPrice" class="mt-3 pt-2 border-t border-border text-xs">
-                    <div class="flex justify-between">
-                        <span class="text-textLight">止盈价</span>
-                        <span class="text-up">{{ simTakePrice.toFixed(2) }}</span>
+                <div>
+                    <label class="text-textLight text-xs mb-1 block">止盈价</label>
+                    <input type="number" step="10" v-model.number="simTakePrice" @input="calcContractSim"
+                           class="w-full bg-primary text-text border border-border px-2 py-1 rounded text-xs">
+                </div>
+                <div>
+                    <label class="text-textLight text-xs mb-1 block">盈亏比</label>
+                    <input type="number" step="0.1" v-model.number="simRR" @input="calcContractSim"
+                           class="w-full bg-primary text-text border border-border px-2 py-1 rounded text-xs">
+                </div>
+            </div>
+            <div class="grid grid-cols-3 gap-3 mb-3">
+                <div>
+                    <span class="text-textLight text-xs mb-1 block">挂单手续费率</span>
+                    <input type="number" step="0.01" disabled v-model.number="feeMaker"
+                           class="w-full bg-primary text-text border border-border px-2 py-1 rounded text-xs">
+                </div>
+                <div>
+                    <span class="text-textLight text-xs mb-1 block">吃单手续费率</span>
+                    <input type="number" step="0.01" disabled v-model.number="feeTaker"
+                           class="w-full bg-primary text-text border border-border px-2 py-1 rounded text-xs">
+                </div>
+                <div>
+                    <span class="text-textLight text-xs mb-1 block">维持保证金率</span>
+                    <input type="number" disabled v-model.number="mmr"
+                           class="w-full bg-primary text-text border border-border px-2 py-1 rounded text-xs">
+                </div>
+            </div>
+            <div v-if="simEntryPrice" class="grid grid-cols-2 gap-2 mb-2">
+                <div>
+                    <span class="text-textLight text-xs mb-1 block">开仓价</span>
+                    <input type="number" v-model.number="simEntryPrice" @input="calcContractSim"
+                           class="w-full bg-primary text-text border border-border px-2 py-1 rounded text-xs">
+                </div>
+                <div>
+                    <span class="text-textLight text-xs mb-1 block">初始保证金（USDT）</span>
+                    <input type="number" v-model.number="simMargin"
+                           class="w-full bg-primary text-text border border-border px-2 py-1 rounded text-xs">
+                </div>
+            </div>
+            <!-- 结果 -->
+            <div v-if="simEntryPrice" class="mt-3 pt-2 border-t border-border text-xs">
+                <div class="flex justify-between">
+                    <span class="text-textLight">止盈价</span>
+                    <span class="text-up">{{ simTakePrice.toFixed(2) }}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-textLight">开仓价</span>
+                    <span>{{ simEntryPrice.toFixed(2) }}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-textLight">止损价</span>
+                    <span class="text-warning">{{ simStopPrice.toFixed(2) }}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-textLight">预估强平价</span>
+                    <span class="text-down">{{ simLiqPrice.toFixed(2) }}</span>
+                </div>
+                <div class="mt-2 pt-2 border-t border-border">
+                    <div class="flex justify-between text-[11px] opacity-70">
+                        <span>挂单开仓手续费</span>
+                        <span>{{ openFeeMaker?.toFixed(4) }} USDT</span>
                     </div>
-                    <div class="flex justify-between">
-                        <span class="text-textLight">开仓价</span>
-                        <span>{{ simEntryPrice.toFixed(2) }}</span>
+                    <div class="flex justify-between text-[11px] opacity-70">
+                        <span>吃单开仓手续费</span>
+                        <span>{{ openFeeTaker?.toFixed(4) }} USDT</span>
                     </div>
-                    <div class="flex justify-between">
-                        <span class="text-textLight">止损价</span>
-                        <span class="text-warning">{{ simStopPrice.toFixed(2) }}</span>
+                    <div class="flex justify-between text-[11px] opacity-70">
+                        <span>挂单止盈平仓手续费</span>
+                        <span>{{ closeWinFeeMaker?.toFixed(4) }} USDT</span>
                     </div>
-                    <div class="flex justify-between">
-                        <span class="text-textLight">预估强平价</span>
-                        <span class="text-down">{{ simLiqPrice.toFixed(2) }}</span>
+                    <div class="flex justify-between text-[11px] opacity-70">
+                        <span>吃单止盈平仓手续费</span>
+                        <span>{{ closeWinFeeTaker?.toFixed(4) }} USDT</span>
                     </div>
-                    <div class="mt-2 pt-2 border-t border-border">
-                        <div class="flex justify-between text-[11px] opacity-70">
-                            <span>挂单开仓手续费</span>
-                            <span>{{ openFeeMaker?.toFixed(4) }} USDT</span>
-                        </div>
-                        <div class="flex justify-between text-[11px] opacity-70">
-                            <span>吃单开仓手续费</span>
-                            <span>{{ openFeeTaker?.toFixed(4) }} USDT</span>
-                        </div>
-                        <div class="flex justify-between text-[11px] opacity-70">
-                            <span>挂单止盈平仓手续费</span>
-                            <span>{{ closeWinFeeMaker?.toFixed(4) }} USDT</span>
-                        </div>
-                        <div class="flex justify-between text-[11px] opacity-70">
-                            <span>吃单止盈平仓手续费</span>
-                            <span>{{ closeWinFeeTaker?.toFixed(4) }} USDT</span>
-                        </div>
-                        <div class="flex justify-between text-[11px] opacity-70">
-                            <span>挂单止损平仓手续费</span>
-                            <span>{{ closeLossFeeMaker?.toFixed(4) }} USDT</span>
-                        </div>
-                        <div class="flex justify-between text-[11px] opacity-70">
-                            <span>吃单止损平仓手续费</span>
-                            <span>{{ closeLossFeeTaker?.toFixed(4) }} USDT</span>
-                        </div>
-<!--                        <div class="flex justify-between">-->
-<!--                            <span class="text-textLight">止盈收益（未扣除手续费）</span>-->
-<!--                            <span class="text-up">-->
-<!--                                {{ simPnLTP?.toFixed(4) }} USDT-->
-<!--                            </span>-->
-<!--                        </div>-->
-                        <div class="flex justify-between">
-                            <span class="text-textLight">止盈盈利（挂开+吃平）</span>
-                            <span class="text-up">
+                    <div class="flex justify-between text-[11px] opacity-70">
+                        <span>挂单止损平仓手续费</span>
+                        <span>{{ closeLossFeeMaker?.toFixed(4) }} USDT</span>
+                    </div>
+                    <div class="flex justify-between text-[11px] opacity-70">
+                        <span>吃单止损平仓手续费</span>
+                        <span>{{ closeLossFeeTaker?.toFixed(4) }} USDT</span>
+                    </div>
+                    <!--                        <div class="flex justify-between">-->
+                    <!--                            <span class="text-textLight">止盈收益（未扣除手续费）</span>-->
+                    <!--                            <span class="text-up">-->
+                    <!--                                {{ simPnLTP?.toFixed(4) }} USDT-->
+                    <!--                            </span>-->
+                    <!--                        </div>-->
+                    <div class="flex justify-between">
+                        <span class="text-textLight">止盈盈利（挂开+吃平）</span>
+                        <span class="text-up">
                                 {{ simPnLTPNet?.toFixed(4) }} USDT
                             </span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span class="text-textLight">止损净亏损</span>
-                            <span class="text-down">
-                                {{ simPnLSLNet?.toFixed(4) }} USDT
-                            </span>
-                        </div>
-                    </div>
-
-                </div>
-
-                <div class="text-[11px] text-textLight opacity-60 mt-2">
-                    点击图表中的 K 线 → 使用该 K 线开盘价模拟开仓
-                </div>
-            </div>
-            <!-- 技术指标 - EMA -->
-            <div class="panel border border-border mb-3 p-3 rounded bg-secondary/80">
-                <h3 class="text-textHighlight text-sm mb-2 pb-2 border-b border-border">技术指标 - EMA</h3>
-
-                <div v-for="(ema, i) in emas" :key="ema.id" class="border border-border p-2 mb-2 rounded bg-primary">
-                    <div class="flex items-center mb-2">
-                        <input type="checkbox" :id="'showEma' + ema.id" v-model="ema.show" @change="updateIndicators"
-                            class="mr-2">
-                        <label :for="'showEma' + ema.id" class="text-textLight text-xs">显示EMA {{ ema.length }}</label>
-                    </div>
-
-                    <div class="grid grid-cols-4 gap-4 mb-4">
-                        <div>
-                            <label class="text-textLight text-xs block mb-1">周期</label>
-                            <input type="number" v-model.number="ema.length" @input="updateIndicators" min="1"
-                                class="w-full bg-primary text-text border border-border px-2 py-1 rounded text-xs">
-                        </div>
-                        <div>
-                            <label class="text-textLight text-xs block mb-1">颜色</label>
-                            <input type="color" v-model="ema.colorHex" @change="updateEmaRgba(ema)"
-                                class="w-full bg-primary text-text border border-border px-2 py-1 rounded text-xs">
-                        </div>
-                        <div>
-                            <label class="text-textLight text-xs block mb-1">透明度</label>
-                            <input type="number" v-model.number="ema.opacity" min="0" max="1" step="0.1"
-                                @change="updateEmaRgba(ema)"
-                                class="w-full bg-primary text-text border border-border px-2 py-1 rounded text-xs"
-                                placeholder="透明度">
-                        </div>
-                        <div>
-                            <label class="text-textLight text-xs block mb-1">操作</label>
-                            <button class="w-full bg-primary text-text border border-border px-2 py-1 rounded text-xs"
-                                @click="removeEma(i)">
-                                删除
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-                <button @click="addEma"
-                    class="w-full bg-border hover:bg-[#334155] transition-colors text-xs py-1.5 rounded cursor-pointer">
-                    + 添加 EMA
-                </button>
-            </div>
-            <!-- 凌晨时段高低点设置 -->
-            <div class="panel border border-border mb-3 p-3 rounded bg-secondary/80">
-                <h3 class="text-textHighlight text-sm mb-2 pb-2 border-b border-border">凌晨时段(0:00-4:00)高低点设置</h3>
-
-                <div class="flex items-center mb-2">
-                    <input type="checkbox" id="showEarlyLevels" v-model="showEarlyLevels" @change="toggleEarlyLevels"
-                        class="mr-2">
-                    <label for="showEarlyLevels" class="text-textLight text-xs">显示高低点线</label>
-                </div>
-
-                <div class="mb-2">
-                    <label class="text-textLight text-xs block mb-1">最高价线段</label>
-                    <div class="flex items-center gap-2">
-                        <input type="color" v-model="earlyHighColorHex" @change="updateEarlyHighRgba"
-                            class="color-input bg-primary border border-border rounded flex-0 w-8">
-                        <input type="number" v-model.number="earlyHighOpacity" min="0" max="1" step="0.1"
-                            @change="updateEarlyHighRgba"
-                            class="flex-1 bg-primary text-text border border-border px-2 py-1.5 rounded text-xs focus:outline-none focus:border-[#64748b] placeholder:text-textLight"
-                            placeholder="透明度">
-                    </div>
-                </div>
-
-                <div class="mb-2">
-                    <label class="text-textLight text-xs block mb-1">最低价线段</label>
-                    <div class="flex items-center gap-2">
-                        <input type="color" v-model="earlyLowColorHex" @change="updateEarlyLowRgba"
-                            class="color-input bg-primary border border-border rounded flex-0 w-8">
-                        <input type="number" v-model.number="earlyLowOpacity" min="0" max="1" step="0.1"
-                            @change="updateEarlyLowRgba"
-                            class="flex-1 bg-primary text-text border border-border px-2 py-1.5 rounded text-xs focus:outline-none focus:border-[#64748b] placeholder:text-textLight"
-                            placeholder="透明度">
-                    </div>
-                </div>
-
-                <!-- 实时显示高低点数值 -->
-                <div v-if="earlyHigh || earlyLow" class="mt-2 pt-2 border-t border-border text-xs">
-                    <div class="flex justify-between mb-1">
-                        <span class="text-textLight">最高价格</span>
-                        <span class="text-up">{{ earlyHigh?.toFixed(4) }}</span>
                     </div>
                     <div class="flex justify-between">
-                        <span class="text-textLight">最低价格</span>
-                        <span class="text-down">{{ earlyLow?.toFixed(4) }}</span>
+                        <span class="text-textLight">止损净亏损</span>
+                        <span class="text-down">
+                                {{ simPnLSLNet?.toFixed(4) }} USDT
+                            </span>
                     </div>
                 </div>
             </div>
+            <div class="text-[11px] text-textLight opacity-60 mt-2">点击图表中的 K 线 → 使用该 K 线开盘价模拟开仓</div>
+            <button @click="startTrade" class="w-full mt-2 bg-up hover:opacity-80 text-xs py-2 rounded">开始交易</button>
         </div>
+        <!-- 技术指标 - EMA -->
+        <div class="panel border border-border mb-3 p-3 rounded bg-secondary/80">
+            <h3 class="text-textHighlight text-sm mb-2 pb-2 border-b border-border">技术指标 - EMA</h3>
 
-        <!-- 图表区 -->
-        <div class="right flex-1 h-screen relative" ref="chartEl">
-            <div class="kline-tooltip absolute z-10 bg-secondary border border-border rounded px-3 py-2 text-xs text-text pointer-events-none transition-opacity min-w-[180px] max-w-[500px]"
-                ref="tooltipEl"
-                :style="{ top: tooltipPos.top + 'px', left: tooltipPos.left + 'px', opacity: tooltipPos.opacity }">
-                <div class="flex justify-between mb-1" v-if="currentKline">
-                    <span class="text-textLight">时区时间</span>
-                    <span class="text-textHighlight">{{ formatUtcToSelectedTimezone(currentKline.time) }}</span>
+            <div v-for="(ema, i) in emas" :key="ema.id" class="border border-border p-2 mb-2 rounded bg-primary">
+                <div class="flex items-center mb-2">
+                    <input type="checkbox" :id="'showEma' + ema.id" v-model="ema.show" @change="updateIndicators"
+                           class="mr-2">
+                    <label :for="'showEma' + ema.id" class="text-textLight text-xs">显示EMA {{ ema.length }}</label>
                 </div>
-                <div class="flex justify-between mb-1" v-if="currentKline">
-                    <span class="text-textLight">本地时间</span>
-                    <span class="text-textHighlight">{{ formatUtcToLocalTime(currentKline.time) }}</span>
+
+                <div class="grid grid-cols-4 gap-4 mb-4">
+                    <div>
+                        <label class="text-textLight text-xs block mb-1">周期</label>
+                        <input type="number" v-model.number="ema.length" @input="updateIndicators" min="1"
+                               class="w-full bg-primary text-text border border-border px-2 py-1 rounded text-xs">
+                    </div>
+                    <div>
+                        <label class="text-textLight text-xs block mb-1">颜色</label>
+                        <input type="color" v-model="ema.colorHex" @change="updateEmaRgba(ema)"
+                               class="w-full bg-primary text-text border border-border px-2 py-1 rounded text-xs">
+                    </div>
+                    <div>
+                        <label class="text-textLight text-xs block mb-1">透明度</label>
+                        <input type="number" v-model.number="ema.opacity" min="0" max="1" step="0.1"
+                               @change="updateEmaRgba(ema)"
+                               class="w-full bg-primary text-text border border-border px-2 py-1 rounded text-xs"
+                               placeholder="透明度">
+                    </div>
+                    <div>
+                        <label class="text-textLight text-xs block mb-1">操作</label>
+                        <button class="w-full bg-primary text-text border border-border px-2 py-1 rounded text-xs"
+                                @click="removeEma(i)">
+                            删除
+                        </button>
+                    </div>
                 </div>
-                <div class="flex justify-between mb-1" v-if="currentKline">
-                    <span class="text-textLight">开盘</span>
-                    <span class="text-textHighlight">{{ currentKline.open.toFixed(4) }}</span>
+            </div>
+
+            <button @click="addEma"
+                    class="w-full bg-border hover:bg-[#334155] transition-colors text-xs py-1.5 rounded cursor-pointer">
+                + 添加 EMA
+            </button>
+        </div>
+        <!-- 凌晨时段高低点设置 -->
+        <div class="panel border border-border mb-3 p-3 rounded bg-secondary/80">
+            <h3 class="text-textHighlight text-sm mb-2 pb-2 border-b border-border">凌晨时段(0:00-4:00)高低点设置</h3>
+
+            <div class="flex items-center mb-2">
+                <input type="checkbox" id="showEarlyLevels" v-model="showEarlyLevels" @change="toggleEarlyLevels"
+                       class="mr-2">
+                <label for="showEarlyLevels" class="text-textLight text-xs">显示高低点线</label>
+            </div>
+
+            <div class="mb-2">
+                <label class="text-textLight text-xs block mb-1">最高价线段</label>
+                <div class="flex items-center gap-2">
+                    <input type="color" v-model="earlyHighColorHex" @change="updateEarlyHighRgba"
+                           class="color-input bg-primary border border-border rounded flex-0 w-8">
+                    <input type="number" v-model.number="earlyHighOpacity" min="0" max="1" step="0.1"
+                           @change="updateEarlyHighRgba"
+                           class="flex-1 bg-primary text-text border border-border px-2 py-1.5 rounded text-xs focus:outline-none focus:border-[#64748b] placeholder:text-textLight"
+                           placeholder="透明度">
                 </div>
-                <div class="flex justify-between mb-1" v-if="currentKline">
-                    <span class="text-textLight">最高</span>
-                    <span class="text-textHighlight">{{ currentKline.high.toFixed(4) }}</span>
+            </div>
+
+            <div class="mb-2">
+                <label class="text-textLight text-xs block mb-1">最低价线段</label>
+                <div class="flex items-center gap-2">
+                    <input type="color" v-model="earlyLowColorHex" @change="updateEarlyLowRgba"
+                           class="color-input bg-primary border border-border rounded flex-0 w-8">
+                    <input type="number" v-model.number="earlyLowOpacity" min="0" max="1" step="0.1"
+                           @change="updateEarlyLowRgba"
+                           class="flex-1 bg-primary text-text border border-border px-2 py-1.5 rounded text-xs focus:outline-none focus:border-[#64748b] placeholder:text-textLight"
+                           placeholder="透明度">
                 </div>
-                <div class="flex justify-between mb-1" v-if="currentKline">
-                    <span class="text-textLight">最低</span>
-                    <span class="text-textHighlight">{{ currentKline.low.toFixed(4) }}</span>
+            </div>
+
+            <!-- 实时显示高低点数值 -->
+            <div v-if="earlyHigh || earlyLow" class="mt-2 pt-2 border-t border-border text-xs">
+                <div class="flex justify-between mb-1">
+                    <span class="text-textLight">最高价格</span>
+                    <span class="text-up">{{ earlyHigh?.toFixed(4) }}</span>
                 </div>
-                <div class="flex justify-between" v-if="currentKline">
-                    <span class="text-textLight">收盘</span>
-                    <span
-                        :class="['text-textHighlight', currentKline.close >= currentKline.open ? 'text-up' : 'text-down']">
-                        {{ currentKline.close.toFixed(4) }}
-                    </span>
+                <div class="flex justify-between">
+                    <span class="text-textLight">最低价格</span>
+                    <span class="text-down">{{ earlyLow?.toFixed(4) }}</span>
                 </div>
             </div>
         </div>
     </div>
 
-    <script>
-        const { createApp } = Vue
+    <!-- 图表区 -->
+    <div class="right flex-1 h-screen relative" ref="chartEl">
+        <div class="kline-tooltip absolute z-10 bg-secondary border border-border rounded px-3 py-2 text-xs text-text pointer-events-none transition-opacity min-w-[180px] max-w-[500px]"
+             ref="tooltipEl"
+             :style="{ top: tooltipPos.top + 'px', left: tooltipPos.left + 'px', opacity: tooltipPos.opacity }">
+            <div class="flex justify-between mb-1" v-if="currentKline">
+                <span class="text-textLight">时区时间</span>
+                <span class="text-textHighlight">{{ formatUtcToSelectedTimezone(currentKline.time) }}</span>
+            </div>
+            <div class="flex justify-between mb-1" v-if="currentKline">
+                <span class="text-textLight">本地时间</span>
+                <span class="text-textHighlight">{{ formatUtcToLocalTime(currentKline.time) }}</span>
+            </div>
+            <div class="flex justify-between mb-1" v-if="currentKline">
+                <span class="text-textLight">开盘</span>
+                <span class="text-textHighlight">{{ currentKline.open.toFixed(4) }}</span>
+            </div>
+            <div class="flex justify-between mb-1" v-if="currentKline">
+                <span class="text-textLight">最高</span>
+                <span class="text-textHighlight">{{ currentKline.high.toFixed(4) }}</span>
+            </div>
+            <div class="flex justify-between mb-1" v-if="currentKline">
+                <span class="text-textLight">最低</span>
+                <span class="text-textHighlight">{{ currentKline.low.toFixed(4) }}</span>
+            </div>
+            <div class="flex justify-between" v-if="currentKline">
+                <span class="text-textLight">收盘</span>
+                <span
+                        :class="['text-textHighlight', currentKline.close >= currentKline.open ? 'text-up' : 'text-down']">
+                        {{ currentKline.close.toFixed(4) }}
+                    </span>
+            </div>
+        </div>
+    </div>
+</div>
 
-        createApp({
-            data() {
-                return {
-                    chart: null,
-                    candleSeries: null,
-                    emaSeries: [],
-                    // 凌晨时段高低点线系列
-                    earlyHighLine: null,
-                    earlyLowLine: null,
-                    klines: [],
+<script>
+    const {createApp} = Vue
 
-                    // 核心配置项
-                    symbol: 'BTCUSDT',
-                    interval: '5m',
-                    timezone: 'America/New_York',
-                    startTime: '',
-                    endTime: '',
-                    selectedDate: '',
+    createApp({
+        data() {
+            return {
+                chart: null,
+                candleSeries: null,
+                emaSeries: [],
+                // 凌晨时段高低点线系列
+                earlyHighLine: null,
+                earlyLowLine: null,
+                klines: [],
 
-                    // 凌晨时段高低点配置（支持16进制颜色+透明度）
-                    earlyHigh: null,
-                    earlyLow: null,
-                    earlyHighColorHex: '#cc1efd', // 金色默认
-                    earlyHighOpacity: 0.7,
-                    earlyHighRgba: 'rgba(223,141,237,0.7)',
-                    earlyLowColorHex: '#00ffff', // 青色默认
-                    earlyLowOpacity: 0.7,
-                    earlyLowRgba: 'rgba(0, 255, 255, 0.7)',
-                    showEarlyLevels: true, // 凌晨时段高低点显示开关
+                // 核心配置项
+                symbol: 'BTCUSDT',
+                interval: '5m',
+                timezone: 'America/New_York',
+                startTime: '',
+                endTime: '',
+                selectedDate: '',
 
-                    // EMA配置（每个EMA包含16进制颜色+透明度+RGBA，支持全缓存）
-                    emas: [],
+                // 凌晨时段高低点配置（支持16进制颜色+透明度）
+                earlyHigh: null,
+                earlyLow: null,
+                earlyHighColorHex: '#cc1efd', // 金色默认
+                earlyHighOpacity: 0.7,
+                earlyHighRgba: 'rgba(223,141,237,0.7)',
+                earlyLowColorHex: '#00ffff', // 青色默认
+                earlyLowOpacity: 0.7,
+                earlyLowRgba: 'rgba(0, 255, 255, 0.7)',
+                showEarlyLevels: true, // 凌晨时段高低点显示开关
 
-                    // 悬浮提示相关数据
-                    currentKline: null,
-                    tooltipPos: {
-                        top: 0,
-                        left: 0,
-                        opacity: 0
+                // EMA配置（每个EMA包含16进制颜色+透明度+RGBA，支持全缓存）
+                emas: [],
+
+                // 悬浮提示相关数据
+                currentKline: null,
+                tooltipPos: {
+                    top: 0,
+                    left: 0,
+                    opacity: 0
+                },
+
+                // ===== 合约模拟相关 =====
+                positionSide: 'long', // long | short
+                // 下单数量
+                simQty: 0.01,
+                // 杠杆
+                simLeverage: 60,
+                // 开仓价
+                simEntryPrice: null,
+                // 初始保证金
+                simMargin: null,
+                // 爆仓价（强平价格）
+                simLiqPrice: null,
+                // 挂单手续费率
+                feeMaker: 0.0002,
+                // 吃单手续费率
+                feeTaker: 0.0006,
+                // 维持保证金率
+                mmr: 0.004,
+                extraMargin: 0,
+
+                initialMargin: 0,
+                maintenanceMargin: 0,
+                isolatedEquity: 0,
+                currentMMR: 0,
+
+                // 挂单开仓手续费
+                openFeeMaker: 0,
+                // 吃单开仓手续费
+                openFeeTaker: 0,
+                // 挂单止盈平仓手续费
+                closeWinFeeMaker: 0,
+                // 吃单止盈平仓手续费
+                closeWinFeeTaker: 0,
+                // 挂单止损平仓手续费
+                closeLossFeeMaker: 0,
+                // 吃单止损平仓手续费
+                closeLossFeeTaker: 0,
+
+                entryLine: null,
+                liqLine: null,
+
+                // ===== 止盈止损 & 手续费 =====
+                simStopPrice: null,        // 止损价（可手动改）
+                simRR: 2,                // 盈亏比，默认 1:1.5
+                simTakePrice: null,        // 止盈价（可手动改）
+                simPnLTP: null,            // 止盈毛盈利
+                simPnLTPNet: null,         // 止盈净盈利
+                simPnLSLNet: null,         // 止损净亏损
+
+                // 图表线
+                stopLine: null,
+                takeLine: null,
+
+                // ===== 交易系统 =====
+                tradeGroups: [],
+                activeTradeGroupId: null,
+            }
+        },
+
+        mounted() {
+            this.initChart();
+            this.loadCache(); // 优先加载缓存
+            this.setDefaultTodayTime();
+            this.updateChartTimeFormatter();
+            this.updateIndicators();
+            this.initCrosshairListener();
+
+            // 初始化EMA和凌晨时段的RGBA值（从缓存/默认值转换）
+            this.emas.forEach(ema => this.updateEmaRgba(ema));
+            this.updateEarlyHighRgba();
+            this.updateEarlyLowRgba();
+
+            window.addEventListener('resize', this.handleWindowResize);
+        },
+
+        unmounted() {
+            window.removeEventListener('resize', this.handleWindowResize);
+        },
+
+        methods: {
+            addTradeGroup() {
+                const id = Date.now();
+                const amount = Number(prompt('输入初始资金（USDT）', '100'));
+                if (!amount || amount <= 0) return;
+
+                this.tradeGroups.push({
+                    id,
+                    name: `交易组 ${this.tradeGroups.length + 1}`,
+                    initialBalance: amount,
+                    balance: amount,
+                    active: false,
+                    trades: []
+                });
+
+                this.activateTradeGroup(id);
+            },
+
+            activateTradeGroup(id) {
+                this.activeTradeGroupId = id;
+            },
+
+            removeTradeGroup(id) {
+                this.tradeGroups = this.tradeGroups.filter(g => g.id !== id);
+                if (this.activeTradeGroupId === id) {
+                    this.activeTradeGroupId = null;
+                }
+            },
+            startTrade() {
+                const group = this.tradeGroups.find(g => g.id === this.activeTradeGroupId);
+                if (!group) return alert('请先激活一个交易组');
+                if (!this.simEntryPrice) return alert('请先点击K线选择开仓点');
+                if (group.balance <= 0) return;
+
+                const entryIndex = this.klines.findIndex(
+                    k => k.open === this.simEntryPrice
+                );
+                if (entryIndex === -1) return;
+
+                for (let i = entryIndex + 1; i < this.klines.length; i++) {
+                    const k = this.klines[i];
+
+                    if (this.positionSide === 'long') {
+                        if (k.low <= this.simStopPrice) {
+                            this.recordTrade(group, k, 'SL');
+                            return;
+                        }
+                        if (k.high >= this.simTakePrice) {
+                            this.recordTrade(group, k, 'TP');
+                            return;
+                        }
+                    } else {
+                        if (k.high >= this.simStopPrice) {
+                            this.recordTrade(group, k, 'SL');
+                            return;
+                        }
+                        if (k.low <= this.simTakePrice) {
+                            this.recordTrade(group, k, 'TP');
+                            return;
+                        }
+                    }
+                }
+
+                // 没有触达 → 作废
+            },
+            recordTrade(group, kline, result) {
+                const pnl = result === 'TP'
+                    ? this.simPnLTPNet
+                    : this.simPnLSLNet;
+
+                group.balance += pnl;
+
+                group.trades.push({
+                    entryTime: this.simEntryPrice,
+                    entryPrice: this.simEntryPrice,
+                    exitTime: kline.time,
+                    exitPrice: result === 'TP' ? this.simTakePrice : this.simStopPrice,
+                    side: this.positionSide,
+                    qty: this.simQty,
+                    pnlNet: pnl,
+                    result
+                });
+            },
+            /**
+             * 格式化时间（转换为用户选择的时区）
+             */
+            formatUtcToSelectedTimezone(utcTimestamp) {
+                if (!utcTimestamp) return '';
+                const date = new Date(utcTimestamp * 1000);
+                return new Intl.DateTimeFormat('zh-CN', {
+                    timeZone: this.timezone,
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit'
+                }).format(date);
+            },
+
+            /**
+             * 格式化时间（转换为UTC+8时间）
+             */
+            formatUtcToLocalTime(utcTimestamp) {
+                if (!utcTimestamp) return '';
+                const date = new Date(utcTimestamp * 1000);
+                return new Intl.DateTimeFormat('zh-CN', {
+                    timeZone: "Asia/Shanghai",
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit'
+                }).format(date);
+            },
+
+            /**
+             * 更新图表时间格式化器
+             */
+            updateChartTimeFormatter() {
+                if (!this.chart) return;
+                this.chart.timeScale().applyOptions({
+                    tickMarkFormatter: (utcTimestamp) => this.formatUtcToSelectedTimezone(utcTimestamp)
+                });
+            },
+
+            /**
+             * 设置默认当日时间
+             */
+            setDefaultTodayTime() {
+                if (this.startTime && this.endTime) return;
+
+                const now = new Date();
+                const timezoneDateFormatter = new Intl.DateTimeFormat('en-US', {
+                    timeZone: this.timezone,
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit'
+                });
+                const parts = timezoneDateFormatter.formatToParts(now);
+
+                const year = parts.find(p => p.type === 'year').value;
+                const month = parts.find(p => p.type === 'month').value;
+                const day = parts.find(p => p.type === 'day').value;
+                const todayLocalDate = `${year}-${month}-${day}`;
+                this.selectedDate = this.selectedDate || todayLocalDate;
+                this.startTime = this.startTime || `${todayLocalDate}T00:00`;
+                this.endTime = this.endTime || `${todayLocalDate}T23:59`;
+            },
+
+            /**
+             * 初始化图表
+             */
+            initChart() {
+                if (!this.$refs.chartEl) return;
+
+                this.chart = LightweightCharts.createChart(this.$refs.chartEl, {
+                    layout: {background: {color: '#020617'}, textColor: '#cbd5f5'},
+                    grid: {vertLines: {color: '#1e293b'}, horzLines: {color: '#1e293b'}},
+                    timeScale: {timeVisible: true, secondsVisible: false},
+                    crosshair: {
+                        // 禁用水平价格虚线（横贯图表的那条线）
+                        horzLine: {
+                            // visible: false, // 关键属性：设为 false 隐藏水平价格线
+                            // 补充：即使开启，也可配置样式（此处禁用后无需配置）
+                            color: '#999',
+                            style: LightweightCharts.LineStyle.Dashed,
+                        },
+                        // 可选：保留垂直时间线（不影响用户查看对应时间）
+                        vertLine: {
+                            visible: true,
+                            color: '#666',
+                            style: LightweightCharts.LineStyle.Dashed,
+                        },
                     },
+                    height: this.$refs.chartEl.clientHeight
+                });
 
-                    // ===== 合约模拟相关 =====
-                    positionSide: 'long', // long | short
-                    // 下单数量
-                    simQty: 0.01,
-                    // 杠杆
-                    simLeverage: 60,
-                    // 开仓价
-                    simEntryPrice: null,
-                    // 初始保证金
-                    simMargin: null,
-                    // 爆仓价（强平价格）
-                    simLiqPrice: null,
-                    // 挂单手续费率
-                    feeMaker: 0.0002,
-                    // 吃单手续费率
-                    feeTaker: 0.0006,
-                    // 维持保证金率
-                    mmr: 0.004,
-                    extraMargin: 0,
+                this.candleSeries = this.chart.addSeries(LightweightCharts.CandlestickSeries, {
+                    upColor: '#22c55e',
+                    downColor: '#ef4444',
+                    borderUpColor: '#22c55e',
+                    borderDownColor: '#ef4444',
+                    wickUpColor: '#22c55e',
+                    wickDownColor: '#ef4444'
+                });
 
-                    initialMargin: 0,
-                    maintenanceMargin: 0,
-                    isolatedEquity: 0,
-                    currentMMR: 0,
+                this.chart.subscribeClick((param) => {
+                    if (!param.time) return;
+                    const k = this.klines.find(k => k.time === param.time);
+                    if (!k) return;
 
-                    // 挂单开仓手续费
-                    openFeeMaker: 0,
-                    // 吃单开仓手续费
-                    openFeeTaker: 0,
-                    // 挂单止盈平仓手续费
-                    closeWinFeeMaker: 0,
-                    // 吃单止盈平仓手续费
-                    closeWinFeeTaker: 0,
-                    // 挂单止损平仓手续费
-                    closeLossFeeMaker: 0,
-                    // 吃单止损平仓手续费
-                    closeLossFeeTaker: 0,
+                    this.simEntryPrice = k.open;
+                    this.simStopPrice = null; // 重置，防止旧 SL 污染
+                    this.simTakePrice = null;
+                    this.calcContractSim();
+                });
+            },
 
-                    entryLine: null,
-                    liqLine: null,
+            /**
+             * 初始化十字光标监听（悬浮提示）
+             */
+            initCrosshairListener() {
+                if (!this.chart || !this.candleSeries) return;
 
-                    // ===== 止盈止损 & 手续费 =====
-                    simStopPrice: null,        // 止损价（可手动改）
-                    simRR: 2,                // 盈亏比，默认 1:1.5
-                    simTakePrice: null,        // 止盈价（可手动改）
-                    simPnLTP: null,            // 止盈毛盈利
-                    simPnLTPNet: null,         // 止盈净盈利
-                    simPnLSLNet: null,         // 止损净亏损
+                this.chart.subscribeCrosshairMove((param) => {
+                    const point = param.point;
+                    if (!point || !param.time) {
+                        this.currentKline = null;
+                        this.tooltipPos.opacity = 0;
+                        return;
+                    }
 
-                    // 图表线
-                    stopLine: null,
-                    takeLine: null,
+                    // 匹配当前K线数据
+                    const currentKline = this.klines.find(k => k.time === param.time);
+                    if (!currentKline) {
+                        this.currentKline = null;
+                        this.tooltipPos.opacity = 0;
+                        return;
+                    }
+                    this.currentKline = currentKline;
 
+                    // 计算提示框位置（边界处理）
+                    const chartRect = this.$refs.chartEl.getBoundingClientRect();
+                    const tooltipEl = this.$refs.tooltipEl;
+                    const tooltipWidth = tooltipEl.offsetWidth || 180;
+                    const tooltipHeight = tooltipEl.offsetHeight || 100;
+
+                    let left = point.x + 10;
+                    let top = point.y + 5;
+
+                    const maxLeft = chartRect.width - tooltipWidth - 10;
+                    const maxTop = chartRect.height - tooltipHeight - 10;
+                    left = Math.min(left, maxLeft);
+                    left = Math.max(left, 10);
+                    top = Math.min(top, maxTop);
+                    top = Math.max(top, 10);
+
+                    // 更新提示框位置
+                    this.tooltipPos = {
+                        top: top,
+                        left: left,
+                        opacity: 1
+                    };
+                });
+            },
+
+            /**
+             * 加载K线数据
+             */
+            async loadKlines() {
+                if (!this.symbol || !this.startTime || !this.endTime) {
+                    alert('请填写完整的合约Symbol和时间范围！');
+                    return;
+                }
+                const url = `http://127.0.0.1:8001/api/klines?symbol=${this.symbol}&interval=${this.interval}&start=${this.startTime}&end=${this.endTime}&timezone=${this.timezone}`;
+
+                try {
+                    const res = await fetch(url);
+                    if (!res.ok) throw new Error(`请求失败：${res.status} ${res.statusText}`);
+                    const data = await res.json();
+                    this.klines = data.map(k => ({
+                        time: Math.floor(k.time / 1000),
+                        open: +k.open,
+                        high: +k.high,
+                        low: +k.low,
+                        close: +k.close
+                    }));
+
+                    this.candleSeries.setData(this.klines);
+                    this.chart.timeScale().fitContent();
+                    this.updateIndicators();
+                    this.calculateAndDrawEarlySessionLevels(); // 计算凌晨高低点
+                    this.saveCache(); // 保存最新数据到缓存
+                } catch (error) {
+                    console.error('加载K线数据失败：', error);
+                    alert('加载K线数据失败，请检查接口是否可用或控制台查看详情！');
                 }
             },
 
-            mounted() {
-                this.initChart();
-                this.loadCache(); // 优先加载缓存
-                this.setDefaultTodayTime();
-                this.updateChartTimeFormatter();
-                this.updateIndicators();
-                this.initCrosshairListener();
-
-                // 初始化EMA和凌晨时段的RGBA值（从缓存/默认值转换）
-                this.emas.forEach(ema => this.updateEmaRgba(ema));
-                this.updateEarlyHighRgba();
-                this.updateEarlyLowRgba();
-
-                window.addEventListener('resize', this.handleWindowResize);
+            /**
+             * 转换16进制颜色到RGBA（带透明度）
+             */
+            hexToRgba(hex, opacity) {
+                // 去除#号
+                hex = hex.replace(/^#/, '');
+                // 解析RGB值
+                const r = parseInt(hex.substring(0, 2), 16);
+                const g = parseInt(hex.substring(2, 4), 16);
+                const b = parseInt(hex.substring(4, 6), 16);
+                // 返回RGBA格式
+                return `rgba(${r}, ${g}, ${b}, ${opacity})`;
             },
 
-            unmounted() {
-                window.removeEventListener('resize', this.handleWindowResize);
-            },
-
-            methods: {
-                /**
-                 * 格式化时间（转换为用户选择的时区）
-                 */
-                formatUtcToSelectedTimezone(utcTimestamp) {
-                    if (!utcTimestamp) return '';
-                    const date = new Date(utcTimestamp * 1000);
-                    return new Intl.DateTimeFormat('zh-CN', {
-                        timeZone: this.timezone,
-                        year: 'numeric',
-                        month: '2-digit',
-                        day: '2-digit',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                        second: '2-digit'
-                    }).format(date);
-                },
-
-                /**
-                 * 格式化时间（转换为UTC+8时间）
-                 */
-                formatUtcToLocalTime(utcTimestamp) {
-                    if (!utcTimestamp) return '';
-                    const date = new Date(utcTimestamp * 1000);
-                    return new Intl.DateTimeFormat('zh-CN', {
-                        timeZone: "Asia/Shanghai",
-                        year: 'numeric',
-                        month: '2-digit',
-                        day: '2-digit',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                        second: '2-digit'
-                    }).format(date);
-                },
-
-                /**
-                 * 更新图表时间格式化器
-                 */
-                updateChartTimeFormatter() {
-                    if (!this.chart) return;
-                    this.chart.timeScale().applyOptions({
-                        tickMarkFormatter: (utcTimestamp) => this.formatUtcToSelectedTimezone(utcTimestamp)
-                    });
-                },
-
-                /**
-                 * 设置默认当日时间
-                 */
-                setDefaultTodayTime() {
-                    if (this.startTime && this.endTime) return;
-
-                    const now = new Date();
-                    const timezoneDateFormatter = new Intl.DateTimeFormat('en-US', {
-                        timeZone: this.timezone,
-                        year: 'numeric',
-                        month: '2-digit',
-                        day: '2-digit'
-                    });
-                    const parts = timezoneDateFormatter.formatToParts(now);
-
-                    const year = parts.find(p => p.type === 'year').value;
-                    const month = parts.find(p => p.type === 'month').value;
-                    const day = parts.find(p => p.type === 'day').value;
-                    const todayLocalDate = `${year}-${month}-${day}`;
-                    this.selectedDate = this.selectedDate || todayLocalDate;
-                    this.startTime = this.startTime || `${todayLocalDate}T00:00`;
-                    this.endTime = this.endTime || `${todayLocalDate}T23:59`;
-                },
-
-                /**
-                 * 初始化图表
-                 */
-                initChart() {
-                    if (!this.$refs.chartEl) return;
-
-                    this.chart = LightweightCharts.createChart(this.$refs.chartEl, {
-                        layout: { background: { color: '#020617' }, textColor: '#cbd5f5' },
-                        grid: { vertLines: { color: '#1e293b' }, horzLines: { color: '#1e293b' } },
-                        timeScale: { timeVisible: true, secondsVisible: false },
-                        crosshair: {
-                            // 禁用水平价格虚线（横贯图表的那条线）
-                            horzLine: {
-                                // visible: false, // 关键属性：设为 false 隐藏水平价格线
-                                // 补充：即使开启，也可配置样式（此处禁用后无需配置）
-                                color: '#999',
-                                style: LightweightCharts.LineStyle.Dashed,
-                            },
-                            // 可选：保留垂直时间线（不影响用户查看对应时间）
-                            vertLine: {
-                                visible: true,
-                                color: '#666',
-                                style: LightweightCharts.LineStyle.Dashed,
-                            },
-                        },
-                        height: this.$refs.chartEl.clientHeight
-                    });
-
-                    this.candleSeries = this.chart.addSeries(LightweightCharts.CandlestickSeries, {
-                        upColor: '#22c55e',
-                        downColor: '#ef4444',
-                        borderUpColor: '#22c55e',
-                        borderDownColor: '#ef4444',
-                        wickUpColor: '#22c55e',
-                        wickDownColor: '#ef4444'
-                    });
-
-                    this.chart.subscribeClick((param) => {
-                        if (!param.time) return;
-                        const k = this.klines.find(k => k.time === param.time);
-                        if (!k) return;
-
-                        this.simEntryPrice = k.open;
-                        this.simStopPrice = null; // 重置，防止旧 SL 污染
-                        this.simTakePrice = null;
-                        this.calcContractSim();
-                    });
-                },
-
-                /**
-                 * 初始化十字光标监听（悬浮提示）
-                 */
-                initCrosshairListener() {
-                    if (!this.chart || !this.candleSeries) return;
-
-                    this.chart.subscribeCrosshairMove((param) => {
-                        const point = param.point;
-                        if (!point || !param.time) {
-                            this.currentKline = null;
-                            this.tooltipPos.opacity = 0;
-                            return;
-                        }
-
-                        // 匹配当前K线数据
-                        const currentKline = this.klines.find(k => k.time === param.time);
-                        if (!currentKline) {
-                            this.currentKline = null;
-                            this.tooltipPos.opacity = 0;
-                            return;
-                        }
-                        this.currentKline = currentKline;
-
-                        // 计算提示框位置（边界处理）
-                        const chartRect = this.$refs.chartEl.getBoundingClientRect();
-                        const tooltipEl = this.$refs.tooltipEl;
-                        const tooltipWidth = tooltipEl.offsetWidth || 180;
-                        const tooltipHeight = tooltipEl.offsetHeight || 100;
-
-                        let left = point.x + 10;
-                        let top = point.y + 5;
-
-                        const maxLeft = chartRect.width - tooltipWidth - 10;
-                        const maxTop = chartRect.height - tooltipHeight - 10;
-                        left = Math.min(left, maxLeft);
-                        left = Math.max(left, 10);
-                        top = Math.min(top, maxTop);
-                        top = Math.max(top, 10);
-
-                        // 更新提示框位置
-                        this.tooltipPos = {
-                            top: top,
-                            left: left,
-                            opacity: 1
-                        };
-                    });
-                },
-
-                /**
-                 * 加载K线数据
-                 */
-                async loadKlines() {
-                    if (!this.symbol || !this.startTime || !this.endTime) {
-                        alert('请填写完整的合约Symbol和时间范围！');
-                        return;
-                    }
-                    const url = `http://127.0.0.1:8001/api/klines?symbol=${this.symbol}&interval=${this.interval}&start=${this.startTime}&end=${this.endTime}&timezone=${this.timezone}`;
-
-                    try {
-                        const res = await fetch(url);
-                        if (!res.ok) throw new Error(`请求失败：${res.status} ${res.statusText}`);
-                        const data = await res.json();
-                        this.klines = data.map(k => ({
-                            time: Math.floor(k.time / 1000),
-                            open: +k.open,
-                            high: +k.high,
-                            low: +k.low,
-                            close: +k.close
-                        }));
-
-                        this.candleSeries.setData(this.klines);
-                        this.chart.timeScale().fitContent();
-                        this.updateIndicators();
-                        this.calculateAndDrawEarlySessionLevels(); // 计算凌晨高低点
-                        this.saveCache(); // 保存最新数据到缓存
-                    } catch (error) {
-                        console.error('加载K线数据失败：', error);
-                        alert('加载K线数据失败，请检查接口是否可用或控制台查看详情！');
-                    }
-                },
-
-                /**
-                 * 转换16进制颜色到RGBA（带透明度）
-                 */
-                hexToRgba(hex, opacity) {
-                    // 去除#号
-                    hex = hex.replace(/^#/, '');
-                    // 解析RGB值
-                    const r = parseInt(hex.substring(0, 2), 16);
-                    const g = parseInt(hex.substring(2, 4), 16);
-                    const b = parseInt(hex.substring(4, 6), 16);
-                    // 返回RGBA格式
-                    return `rgba(${r}, ${g}, ${b}, ${opacity})`;
-                },
-
-                /**
-                 * 更新凌晨时段最高价线段的RGBA值
-                 */
-                updateEarlyHighRgba() {
-                    this.earlyHighRgba = this.hexToRgba(this.earlyHighColorHex, this.earlyHighOpacity);
-                    // 实时更新图表线条
-                    if (this.earlyHighLine && this.earlyHigh && this.showEarlyLevels) {
-                        this.earlyHighLine.applyOptions({ color: this.earlyHighRgba });
-                        this.saveCache();
-                    }
-                },
-
-                /**
-                 * 更新凌晨时段最低价线段的RGBA值
-                 */
-                updateEarlyLowRgba() {
-                    this.earlyLowRgba = this.hexToRgba(this.earlyLowColorHex, this.earlyLowOpacity);
-                    // 实时更新图表线条
-                    if (this.earlyLowLine && this.earlyLow && this.showEarlyLevels) {
-                        this.earlyLowLine.applyOptions({ color: this.earlyLowRgba });
-                        this.saveCache();
-                    }
-                },
-
-                /**
-                 * 切换凌晨时段高低点显示状态
-                 */
-                toggleEarlyLevels() {
-                    if (this.showEarlyLevels) {
-                        this.calculateAndDrawEarlySessionLevels();
-                    } else {
-                        this.clearEarlySessionLines();
-                    }
-                },
-
-                /**
-                 * 更新单个EMA的RGBA值
-                 */
-                updateEmaRgba(ema) {
-                    ema.color = this.hexToRgba(ema.colorHex, ema.opacity);
-                    // 实时更新图表EMA线条
-                    this.updateIndicators();
+            /**
+             * 更新凌晨时段最高价线段的RGBA值
+             */
+            updateEarlyHighRgba() {
+                this.earlyHighRgba = this.hexToRgba(this.earlyHighColorHex, this.earlyHighOpacity);
+                // 实时更新图表线条
+                if (this.earlyHighLine && this.earlyHigh && this.showEarlyLevels) {
+                    this.earlyHighLine.applyOptions({color: this.earlyHighRgba});
                     this.saveCache();
-                },
+                }
+            },
 
-                /**
-                 * 计算并绘制凌晨时段(0:00-4:00)的高低点
-                 */
-                calculateAndDrawEarlySessionLevels() {
-                    // 只在5分钟周期下计算
-                    if (this.interval !== '5m' || this.klines.length === 0 || !this.showEarlyLevels) {
-                        this.clearEarlySessionLines();
-                        this.earlyHigh = null;
-                        this.earlyLow = null;
-                        return;
-                    }
+            /**
+             * 更新凌晨时段最低价线段的RGBA值
+             */
+            updateEarlyLowRgba() {
+                this.earlyLowRgba = this.hexToRgba(this.earlyLowColorHex, this.earlyLowOpacity);
+                // 实时更新图表线条
+                if (this.earlyLowLine && this.earlyLow && this.showEarlyLevels) {
+                    this.earlyLowLine.applyOptions({color: this.earlyLowRgba});
+                    this.saveCache();
+                }
+            },
 
-                    // 筛选凌晨0:00-4:00的K线（按用户选择的时区）
-                    const earlySessionKlines = [];
-                    this.klines.forEach(kline => {
-                        const date = new Date(kline.time * 1000);
-                        const localTime = new Intl.DateTimeFormat('en-US', {
-                            timeZone: this.timezone,
-                            hour: '2-digit',
-                            minute: '2-digit',
-                            hour12: false
-                        }).format(date);
-                        const hour = parseInt(localTime.split(':')[0], 10);
-                        if (hour >= 0 && hour < 4) {
-                            earlySessionKlines.push(kline);
-                        }
-                    });
-
-                    if (earlySessionKlines.length === 0) {
-                        this.clearEarlySessionLines();
-                        this.earlyHigh = null;
-                        this.earlyLow = null;
-                        return;
-                    }
-
-                    // 计算高低价
-                    this.earlyHigh = Math.max(...earlySessionKlines.map(k => k.high));
-                    this.earlyLow = Math.min(...earlySessionKlines.map(k => k.low));
-
-                    // 绘制高低点线条
-                    this.drawEarlySessionLines();
-                },
-
-                /**
-                 * 绘制凌晨时段高低点水平线
-                 */
-                drawEarlySessionLines() {
-                    if (!this.showEarlyLevels) return;
-
-                    // 清除已有线条
+            /**
+             * 切换凌晨时段高低点显示状态
+             */
+            toggleEarlyLevels() {
+                if (this.showEarlyLevels) {
+                    this.calculateAndDrawEarlySessionLevels();
+                } else {
                     this.clearEarlySessionLines();
+                }
+            },
 
-                    // 创建高点线（自定义颜色+虚线）
-                    this.earlyHighLine = this.chart.addSeries(LightweightCharts.LineSeries, {
-                        color: this.earlyHighRgba,
-                        lineWidth: 1.5,
-                        lineStyle: LightweightCharts.LineStyle.Solid,
-                        crosshairMarkerVisible: false,
-                        title: '4h高点线'
-                    });
+            /**
+             * 更新单个EMA的RGBA值
+             */
+            updateEmaRgba(ema) {
+                ema.color = this.hexToRgba(ema.colorHex, ema.opacity);
+                // 实时更新图表EMA线条
+                this.updateIndicators();
+                this.saveCache();
+            },
 
-                    // 创建低点线（自定义颜色+虚线）
-                    this.earlyLowLine = this.chart.addSeries(LightweightCharts.LineSeries, {
-                        color: this.earlyLowRgba,
-                        lineWidth: 1.5,
-                        lineStyle: LightweightCharts.LineStyle.Solid,
-                        crosshairMarkerVisible: false,
-                        title: '4h低点线'
-                    });
+            /**
+             * 计算并绘制凌晨时段(0:00-4:00)的高低点
+             */
+            calculateAndDrawEarlySessionLevels() {
+                // 只在5分钟周期下计算
+                if (this.interval !== '5m' || this.klines.length === 0 || !this.showEarlyLevels) {
+                    this.clearEarlySessionLines();
+                    this.earlyHigh = null;
+                    this.earlyLow = null;
+                    return;
+                }
 
-                    // 设置线条数据（贯穿整个图表）
-                    const highLineData = [
-                        { time: this.klines[0].time, value: this.earlyHigh },
-                        { time: this.klines[this.klines.length - 1].time, value: this.earlyHigh }
-                    ];
-                    const lowLineData = [
-                        { time: this.klines[0].time, value: this.earlyLow },
-                        { time: this.klines[this.klines.length - 1].time, value: this.earlyLow }
-                    ];
-
-                    this.earlyHighLine.setData(highLineData);
-                    this.earlyLowLine.setData(lowLineData);
-                },
-
-                /**
-                 * 清除凌晨时段高低点线条
-                 */
-                clearEarlySessionLines() {
-                    if (this.earlyHighLine) {
-                        this.chart.removeSeries(this.earlyHighLine);
-                        this.earlyHighLine = null;
+                // 筛选凌晨0:00-4:00的K线（按用户选择的时区）
+                const earlySessionKlines = [];
+                this.klines.forEach(kline => {
+                    const date = new Date(kline.time * 1000);
+                    const localTime = new Intl.DateTimeFormat('en-US', {
+                        timeZone: this.timezone,
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        hour12: false
+                    }).format(date);
+                    const hour = parseInt(localTime.split(':')[0], 10);
+                    if (hour >= 0 && hour < 4) {
+                        earlySessionKlines.push(kline);
                     }
-                    if (this.earlyLowLine) {
-                        this.chart.removeSeries(this.earlyLowLine);
-                        this.earlyLowLine = null;
-                    }
-                },
+                });
 
-                /**
-                 * 处理K线周期变化
-                 */
-                handleIntervalChange() {
-                    if (this.interval === '5m' && this.klines.length > 0 && this.showEarlyLevels) {
-                        this.calculateAndDrawEarlySessionLevels();
-                    } else {
-                        this.clearEarlySessionLines();
-                        this.earlyHigh = null;
-                        this.earlyLow = null;
-                    }
-                    this.saveCache();
-                },
+                if (earlySessionKlines.length === 0) {
+                    this.clearEarlySessionLines();
+                    this.earlyHigh = null;
+                    this.earlyLow = null;
+                    return;
+                }
 
-                /**
-                 * 计算EMA指标
-                 */
-                calcEMA(data, length) {
-                    if (!Array.isArray(data) || data.length === 0 || length < 1) return [];
+                // 计算高低价
+                this.earlyHigh = Math.max(...earlySessionKlines.map(k => k.high));
+                this.earlyLow = Math.min(...earlySessionKlines.map(k => k.low));
 
-                    const result = [];
-                    const k = 2 / (length + 1);
-                    let prevEma = data[0].close;
+                // 绘制高低点线条
+                this.drawEarlySessionLines();
+            },
 
-                    data.forEach(d => {
-                        prevEma = d.close * k + prevEma * (1 - k);
-                        result.push({ time: d.time, value: prevEma });
+            /**
+             * 绘制凌晨时段高低点水平线
+             */
+            drawEarlySessionLines() {
+                if (!this.showEarlyLevels) return;
+
+                // 清除已有线条
+                this.clearEarlySessionLines();
+
+                // 创建高点线（自定义颜色+虚线）
+                this.earlyHighLine = this.chart.addSeries(LightweightCharts.LineSeries, {
+                    color: this.earlyHighRgba,
+                    lineWidth: 1.5,
+                    lineStyle: LightweightCharts.LineStyle.Solid,
+                    crosshairMarkerVisible: false,
+                    title: '4h高点线'
+                });
+
+                // 创建低点线（自定义颜色+虚线）
+                this.earlyLowLine = this.chart.addSeries(LightweightCharts.LineSeries, {
+                    color: this.earlyLowRgba,
+                    lineWidth: 1.5,
+                    lineStyle: LightweightCharts.LineStyle.Solid,
+                    crosshairMarkerVisible: false,
+                    title: '4h低点线'
+                });
+
+                // 设置线条数据（贯穿整个图表）
+                const highLineData = [
+                    {time: this.klines[0].time, value: this.earlyHigh},
+                    {time: this.klines[this.klines.length - 1].time, value: this.earlyHigh}
+                ];
+                const lowLineData = [
+                    {time: this.klines[0].time, value: this.earlyLow},
+                    {time: this.klines[this.klines.length - 1].time, value: this.earlyLow}
+                ];
+
+                this.earlyHighLine.setData(highLineData);
+                this.earlyLowLine.setData(lowLineData);
+            },
+
+            /**
+             * 清除凌晨时段高低点线条
+             */
+            clearEarlySessionLines() {
+                if (this.earlyHighLine) {
+                    this.chart.removeSeries(this.earlyHighLine);
+                    this.earlyHighLine = null;
+                }
+                if (this.earlyLowLine) {
+                    this.chart.removeSeries(this.earlyLowLine);
+                    this.earlyLowLine = null;
+                }
+            },
+
+            /**
+             * 处理K线周期变化
+             */
+            handleIntervalChange() {
+                if (this.interval === '5m' && this.klines.length > 0 && this.showEarlyLevels) {
+                    this.calculateAndDrawEarlySessionLevels();
+                } else {
+                    this.clearEarlySessionLines();
+                    this.earlyHigh = null;
+                    this.earlyLow = null;
+                }
+                this.saveCache();
+            },
+
+            /**
+             * 计算EMA指标
+             */
+            calcEMA(data, length) {
+                if (!Array.isArray(data) || data.length === 0 || length < 1) return [];
+
+                const result = [];
+                const k = 2 / (length + 1);
+                let prevEma = data[0].close;
+
+                data.forEach(d => {
+                    prevEma = d.close * k + prevEma * (1 - k);
+                    result.push({time: d.time, value: prevEma});
+                });
+
+                return result;
+            },
+
+            /**
+             * 更新所有技术指标（EMA）
+             */
+            updateIndicators() {
+                if (!this.chart) return;
+
+                // 清除原有EMA系列
+                this.emaSeries.forEach(s => this.chart.removeSeries(s));
+                this.emaSeries = [];
+
+                // 重新添加EMA系列（使用自定义颜色+透明度）
+                this.emas.forEach(ema => {
+                    if (!ema.length || !ema.color || !ema.show) return;
+                    const lineSeries = this.chart.addSeries(LightweightCharts.LineSeries, {
+                        color: ema.color,
+                        lineWidth: 2
                     });
+                    lineSeries.setData(this.calcEMA(this.klines, ema.length));
+                    this.emaSeries.push(lineSeries);
+                });
 
-                    return result;
-                },
+                // 重新绘制凌晨时段线条（防止被EMA覆盖）
+                if (this.interval === '5m' && this.earlyHigh && this.earlyLow && this.showEarlyLevels) {
+                    this.drawEarlySessionLines();
+                }
 
-                /**
-                 * 更新所有技术指标（EMA）
-                 */
-                updateIndicators() {
-                    if (!this.chart) return;
+                if (this.klines.length > 0) this.chart.timeScale().fitContent();
+            },
 
-                    // 清除原有EMA系列
-                    this.emaSeries.forEach(s => this.chart.removeSeries(s));
-                    this.emaSeries = [];
+            /**
+             * 添加新的EMA指标（带默认颜色+透明度）
+             */
+            addEma() {
+                this.emas.push({
+                    id: Date.now(),
+                    length: 20,
+                    colorHex: '#ffff00', // 黄色默认
+                    opacity: 0.8,
+                    color: 'rgba(255, 255, 0, 0.8)', // 默认RGBA
+                    show: true // 默认显示
+                });
+                this.updateIndicators();
+                this.saveCache();
+            },
 
-                    // 重新添加EMA系列（使用自定义颜色+透明度）
-                    this.emas.forEach(ema => {
-                        if (!ema.length || !ema.color || !ema.show) return;
-                        const lineSeries = this.chart.addSeries(LightweightCharts.LineSeries, {
-                            color: ema.color,
-                            lineWidth: 2
-                        });
-                        lineSeries.setData(this.calcEMA(this.klines, ema.length));
-                        this.emaSeries.push(lineSeries);
-                    });
+            /**
+             * 删除指定EMA指标
+             */
+            removeEma(i) {
+                this.emas.splice(i, 1);
+                this.updateIndicators();
+                this.saveCache();
+            },
 
-                    // 重新绘制凌晨时段线条（防止被EMA覆盖）
-                    if (this.interval === '5m' && this.earlyHigh && this.earlyLow && this.showEarlyLevels) {
-                        this.drawEarlySessionLines();
+            /**
+             * 填充当日时间范围
+             */
+            fillDay() {
+                if (!this.selectedDate) return;
+                this.startTime = `${this.selectedDate}T00:00`;
+                this.endTime = `${this.selectedDate}T23:59`;
+                this.saveCache();
+            },
+
+            /**
+             * 保存完整缓存（包含所有配置：核心参数、EMA列表、凌晨时段颜色+透明度）
+             */
+            saveCache() {
+                try {
+                    const cacheData = {
+                        // 核心参数
+                        symbol: this.symbol,
+                        interval: this.interval,
+                        timezone: this.timezone,
+                        startTime: this.startTime,
+                        endTime: this.endTime,
+                        selectedDate: this.selectedDate,
+
+                        // 凌晨时段高低点配置（完整保留颜色+透明度）
+                        earlyHighColorHex: this.earlyHighColorHex,
+                        earlyHighOpacity: this.earlyHighOpacity,
+                        earlyLowColorHex: this.earlyLowColorHex,
+                        earlyLowOpacity: this.earlyLowOpacity,
+
+                        // EMA列表（完整保留每个EMA的所有属性）
+                        emas: this.emas.map(ema => ({
+                            id: ema.id,
+                            length: ema.length,
+                            colorHex: ema.colorHex,
+                            opacity: ema.opacity,
+                            color: ema.color
+                        }))
+                    };
+                    localStorage.setItem('kline_cfg_complete', JSON.stringify(cacheData));
+                } catch (e) {
+                    console.warn('保存缓存失败：', e);
+                }
+            },
+
+            /**
+             * 加载完整缓存（恢复所有配置，无丢失）
+             */
+            loadCache() {
+                try {
+                    const cache = localStorage.getItem('kline_cfg_complete');
+                    if (!cache) return;
+
+                    const cacheData = JSON.parse(cache);
+                    // 恢复核心参数
+                    this.symbol = cacheData.symbol || this.symbol;
+                    this.interval = cacheData.interval || this.interval;
+                    this.timezone = cacheData.timezone || this.timezone;
+                    this.startTime = cacheData.startTime || this.startTime;
+                    this.endTime = cacheData.endTime || this.endTime;
+                    this.selectedDate = cacheData.selectedDate || this.selectedDate;
+
+                    // 恢复凌晨时段高低点配置
+                    this.earlyHighColorHex = cacheData.earlyHighColorHex || this.earlyHighColorHex;
+                    this.earlyHighOpacity = cacheData.earlyHighOpacity || this.earlyHighOpacity;
+                    this.earlyLowColorHex = cacheData.earlyLowColorHex || this.earlyLowColorHex;
+                    this.earlyLowOpacity = cacheData.earlyLowOpacity || this.earlyLowOpacity;
+
+                    // 恢复EMA列表（完整保留每个EMA的属性）
+                    this.emas = cacheData.emas && Array.isArray(cacheData.emas)
+                        ? cacheData.emas.map(ema => ({
+                            id: ema.id || Date.now(),
+                            length: ema.length || 20,
+                            colorHex: ema.colorHex || '#ffff00',
+                            opacity: ema.opacity || 0.8,
+                            color: ema.color || 'rgba(255, 255, 0, 0.8)',
+                            show: true // 从缓存加载时默认显示
+                        }))
+                        : [];
+
+                    // 同步更新RGBA值
+                    this.updateEarlyHighRgba();
+                    this.updateEarlyLowRgba();
+                    this.emas.forEach(ema => this.updateEmaRgba(ema));
+
+                } catch (e) {
+                    console.warn('加载缓存失败：', e);
+                }
+            },
+
+            /**
+             * 处理窗口大小变化
+             */
+            handleWindowResize() {
+                if (!this.chart || !this.$refs.chartEl) return;
+                this.chart.applyOptions({height: this.$refs.chartEl.clientHeight});
+                if (this.klines.length > 0) this.chart.timeScale().fitContent();
+            },
+
+            /**
+             * 合约计算器（唯一计算入口）
+             * UI 的所有输入变化都只能调用这个方法
+             */
+            calcContractSim() {
+                if (!this.simEntryPrice || !this.simQty || !this.simLeverage) return;
+
+                const price = this.simEntryPrice;
+                const qty = this.simQty;
+                const lev = this.simLeverage;
+                const mmr = this.mmr;
+                const side = this.positionSide;
+
+                /* ========= 1️⃣ 初始保证金 ========= */
+                this.simMargin = (price * qty) / lev;
+
+                /* ========= 2️⃣ 强平价 ========= */
+                if (side === 'long') {
+                    this.simLiqPrice =
+                        (price * qty - this.simMargin) /
+                        (qty * (1 - mmr));
+                } else {
+                    this.simLiqPrice =
+                        (price * qty + this.simMargin) /
+                        (qty * (1 + mmr));
+                }
+
+                /* ========= 3️⃣ 止损价（允许手动覆盖） ========= */
+                if (!this.simStopPrice) {
+                    this.simStopPrice = (price + this.simLiqPrice) / 2;
+                }
+
+                /* ========= 4️⃣ 止盈价（RR） ========= */
+                if (!this.simTakePrice) {
+                    const risk = side === 'long'
+                        ? price - this.simStopPrice
+                        : this.simStopPrice - price;
+
+                    if (risk > 0) {
+                        this.simTakePrice = side === 'long'
+                            ? price + risk * this.simRR
+                            : price - risk * this.simRR;
                     }
+                }
 
-                    if (this.klines.length > 0) this.chart.timeScale().fitContent();
-                },
+                /* ========= 5️⃣ 手续费 ========= */
+                // 挂单开仓手续费
+                this.openFeeMaker = this.simEntryPrice * qty * this.feeMaker;
+                // 吃单开仓手续费
+                this.openFeeTaker = this.simEntryPrice * qty * this.feeTaker;
+                // 挂单止盈平仓手续费
+                this.closeWinFeeMaker = this.simTakePrice * qty * this.feeMaker;
+                // 吃单止盈平仓手续费
+                this.closeWinFeeTaker = this.simTakePrice * qty * this.feeTaker;
+                // 挂单止损平仓手续费
+                this.closeLossFeeMaker = this.simStopPrice * qty * this.feeMaker;
+                // 吃单止损平仓手续费
+                this.closeLossFeeTaker = this.simStopPrice * qty * this.feeTaker;
 
-                /**
-                 * 添加新的EMA指标（带默认颜色+透明度）
-                 */
-                addEma() {
-                    this.emas.push({
-                        id: Date.now(),
-                        length: 20,
-                        colorHex: '#ffff00', // 黄色默认
-                        opacity: 0.8,
-                        color: 'rgba(255, 255, 0, 0.8)', // 默认RGBA
-                        show: true // 默认显示
-                    });
-                    this.updateIndicators();
-                    this.saveCache();
-                },
+                const feeOpen = price * qty * this.feeTaker;
 
-                /**
-                 * 删除指定EMA指标
-                 */
-                removeEma(i) {
-                    this.emas.splice(i, 1);
-                    this.updateIndicators();
-                    this.saveCache();
-                },
+                // --- 止盈 ---
+                const pnlTP = side === 'long'
+                    ? (this.simTakePrice - price) * qty
+                    : (price - this.simTakePrice) * qty;
+                // 止盈收益（未扣除手续费）
+                this.simPnLTP = pnlTP;
+                // 止盈盈利（扣除挂单开仓和吃单平仓手续费）
+                this.simPnLTPNet = pnlTP - this.openFeeMaker - this.closeWinFeeTaker;
 
-                /**
-                 * 填充当日时间范围
-                 */
-                fillDay() {
-                    if (!this.selectedDate) return;
-                    this.startTime = `${this.selectedDate}T00:00`;
-                    this.endTime = `${this.selectedDate}T23:59`;
-                    this.saveCache();
-                },
+                // --- 止损 ---
+                const pnlSL = side === 'long'
+                    ? (this.simStopPrice - price) * qty
+                    : (price - this.simStopPrice) * qty;
 
-                /**
-                 * 保存完整缓存（包含所有配置：核心参数、EMA列表、凌晨时段颜色+透明度）
-                 */
-                saveCache() {
-                    try {
-                        const cacheData = {
-                            // 核心参数
-                            symbol: this.symbol,
-                            interval: this.interval,
-                            timezone: this.timezone,
-                            startTime: this.startTime,
-                            endTime: this.endTime,
-                            selectedDate: this.selectedDate,
+                this.simPnLSLNet = pnlSL - this.openFeeMaker - this.closeLossFeeTaker;
 
-                            // 凌晨时段高低点配置（完整保留颜色+透明度）
-                            earlyHighColorHex: this.earlyHighColorHex,
-                            earlyHighOpacity: this.earlyHighOpacity,
-                            earlyLowColorHex: this.earlyLowColorHex,
-                            earlyLowOpacity: this.earlyLowOpacity,
+                /* ========= 6️⃣ 图表线 ========= */
+                this.drawSimLines();
+                this.drawTPSLLines();
+            },
 
-                            // EMA列表（完整保留每个EMA的所有属性）
-                            emas: this.emas.map(ema => ({
-                                id: ema.id,
-                                length: ema.length,
-                                colorHex: ema.colorHex,
-                                opacity: ema.opacity,
-                                color: ema.color
-                            }))
-                        };
-                        localStorage.setItem('kline_cfg_complete', JSON.stringify(cacheData));
-                    } catch (e) {
-                        console.warn('保存缓存失败：', e);
-                    }
-                },
+            drawSimLines() {
+                // 清理旧线
+                if (this.entryLine) this.chart.removeSeries(this.entryLine);
+                if (this.liqLine) this.chart.removeSeries(this.liqLine);
 
-                /**
-                 * 加载完整缓存（恢复所有配置，无丢失）
-                 */
-                loadCache() {
-                    try {
-                        const cache = localStorage.getItem('kline_cfg_complete');
-                        if (!cache) return;
+                const start = this.klines[0].time;
+                const end = this.klines[this.klines.length - 1].time;
 
-                        const cacheData = JSON.parse(cache);
-                        // 恢复核心参数
-                        this.symbol = cacheData.symbol || this.symbol;
-                        this.interval = cacheData.interval || this.interval;
-                        this.timezone = cacheData.timezone || this.timezone;
-                        this.startTime = cacheData.startTime || this.startTime;
-                        this.endTime = cacheData.endTime || this.endTime;
-                        this.selectedDate = cacheData.selectedDate || this.selectedDate;
+                // 开仓价线
+                this.entryLine = this.chart.addSeries(LightweightCharts.LineSeries, {
+                    color: '#a7eec0',
+                    lineWidth: 2,
+                    crosshairMarkerVisible: false,
+                    title: '开仓价线',
+                });
 
-                        // 恢复凌晨时段高低点配置
-                        this.earlyHighColorHex = cacheData.earlyHighColorHex || this.earlyHighColorHex;
-                        this.earlyHighOpacity = cacheData.earlyHighOpacity || this.earlyHighOpacity;
-                        this.earlyLowColorHex = cacheData.earlyLowColorHex || this.earlyLowColorHex;
-                        this.earlyLowOpacity = cacheData.earlyLowOpacity || this.earlyLowOpacity;
+                this.entryLine.setData([
+                    {time: start, value: this.simEntryPrice},
+                    {time: end, value: this.simEntryPrice}
+                ]);
 
-                        // 恢复EMA列表（完整保留每个EMA的属性）
-                        this.emas = cacheData.emas && Array.isArray(cacheData.emas)
-                            ? cacheData.emas.map(ema => ({
-                                id: ema.id || Date.now(),
-                                length: ema.length || 20,
-                                colorHex: ema.colorHex || '#ffff00',
-                                opacity: ema.opacity || 0.8,
-                                color: ema.color || 'rgba(255, 255, 0, 0.8)',
-                                show: true // 从缓存加载时默认显示
-                            }))
-                            : [];
+                // 强平价线
+                this.liqLine = this.chart.addSeries(LightweightCharts.LineSeries, {
+                    color: '#ef4444',
+                    lineWidth: 2,
+                    crosshairMarkerVisible: false,
+                    title: '强平价线'
+                });
 
-                        // 同步更新RGBA值
-                        this.updateEarlyHighRgba();
-                        this.updateEarlyLowRgba();
-                        this.emas.forEach(ema => this.updateEmaRgba(ema));
+                this.liqLine.setData([
+                    {time: start, value: this.simLiqPrice},
+                    {time: end, value: this.simLiqPrice}
+                ]);
+            },
 
-                    } catch (e) {
-                        console.warn('加载缓存失败：', e);
-                    }
-                },
+            drawTPSLLines() {
+                const start = this.klines[0].time;
+                const end = this.klines[this.klines.length - 1].time;
 
-                /**
-                 * 处理窗口大小变化
-                 */
-                handleWindowResize() {
-                    if (!this.chart || !this.$refs.chartEl) return;
-                    this.chart.applyOptions({ height: this.$refs.chartEl.clientHeight });
-                    if (this.klines.length > 0) this.chart.timeScale().fitContent();
-                },
+                // 清理旧线
+                if (this.stopLine) this.chart.removeSeries(this.stopLine);
+                if (this.takeLine) this.chart.removeSeries(this.takeLine);
 
-                /**
-                 * 合约计算器（唯一计算入口）
-                 * UI 的所有输入变化都只能调用这个方法
-                 */
-                calcContractSim() {
-                    if (!this.simEntryPrice || !this.simQty || !this.simLeverage) return;
+                // 止损线（红）
+                this.stopLine = this.chart.addSeries(LightweightCharts.LineSeries, {
+                    color: '#f59e0b',
+                    lineWidth: 2,
+                    lineStyle: LightweightCharts.LineStyle.Dashed,
+                    title: '止损价'
+                });
+                this.stopLine.setData([
+                    {time: start, value: this.simStopPrice},
+                    {time: end, value: this.simStopPrice}
+                ]);
 
-                    const price = this.simEntryPrice;
-                    const qty = this.simQty;
-                    const lev = this.simLeverage;
-                    const mmr = this.mmr;
-                    const side = this.positionSide;
-
-                    /* ========= 1️⃣ 初始保证金 ========= */
-                    this.simMargin = (price * qty) / lev;
-
-                    /* ========= 2️⃣ 强平价 ========= */
-                    if (side === 'long') {
-                        this.simLiqPrice =
-                            (price * qty - this.simMargin) /
-                            (qty * (1 - mmr));
-                    } else {
-                        this.simLiqPrice =
-                            (price * qty + this.simMargin) /
-                            (qty * (1 + mmr));
-                    }
-
-                    /* ========= 3️⃣ 止损价（允许手动覆盖） ========= */
-                    if (!this.simStopPrice) {
-                        this.simStopPrice = (price + this.simLiqPrice) / 2;
-                    }
-
-                    /* ========= 4️⃣ 止盈价（RR） ========= */
-                    if (!this.simTakePrice) {
-                        const risk = side === 'long'
-                            ? price - this.simStopPrice
-                            : this.simStopPrice - price;
-
-                        if (risk > 0) {
-                            this.simTakePrice = side === 'long'
-                                ? price + risk * this.simRR
-                                : price - risk * this.simRR;
-                        }
-                    }
-
-                    /* ========= 5️⃣ 手续费 ========= */
-                    // 挂单开仓手续费
-                    this.openFeeMaker = this.simEntryPrice * qty * this.feeMaker;
-                    // 吃单开仓手续费
-                    this.openFeeTaker = this.simEntryPrice * qty * this.feeTaker;
-                    // 挂单止盈平仓手续费
-                    this.closeWinFeeMaker = this.simTakePrice * qty * this.feeMaker;
-                    // 吃单止盈平仓手续费
-                    this.closeWinFeeTaker = this.simTakePrice * qty * this.feeTaker;
-                    // 挂单止损平仓手续费
-                    this.closeLossFeeMaker = this.simStopPrice * qty * this.feeMaker;
-                    // 吃单止损平仓手续费
-                    this.closeLossFeeTaker = this.simStopPrice * qty * this.feeTaker;
-
-                    const feeOpen = price * qty * this.feeTaker;
-
-                    // --- 止盈 ---
-                    const pnlTP = side === 'long'
-                        ? (this.simTakePrice - price) * qty
-                        : (price - this.simTakePrice) * qty;
-                    // 止盈收益（未扣除手续费）
-                    this.simPnLTP = pnlTP;
-                    // 止盈盈利（扣除挂单开仓和吃单平仓手续费）
-                    this.simPnLTPNet = pnlTP - this.openFeeMaker - this.closeWinFeeTaker;
-
-                    // --- 止损 ---
-                    const pnlSL = side === 'long'
-                        ? (this.simStopPrice - price) * qty
-                        : (price - this.simStopPrice) * qty;
-
-                    this.simPnLSLNet = pnlSL - this.openFeeMaker - this.closeLossFeeTaker;
-
-                    /* ========= 6️⃣ 图表线 ========= */
-                    this.drawSimLines();
-                    this.drawTPSLLines();
-                },
-
-                drawSimLines() {
-                    // 清理旧线
-                    if (this.entryLine) this.chart.removeSeries(this.entryLine);
-                    if (this.liqLine) this.chart.removeSeries(this.liqLine);
-
-                    const start = this.klines[0].time;
-                    const end = this.klines[this.klines.length - 1].time;
-
-                    // 开仓价线
-                    this.entryLine = this.chart.addSeries(LightweightCharts.LineSeries, {
-                        color: '#a7eec0',
-                        lineWidth: 2,
-                        crosshairMarkerVisible: false,
-                        title: '开仓价线',
-                    });
-
-                    this.entryLine.setData([
-                        { time: start, value: this.simEntryPrice },
-                        { time: end, value: this.simEntryPrice }
-                    ]);
-
-                    // 强平价线
-                    this.liqLine = this.chart.addSeries(LightweightCharts.LineSeries, {
-                        color: '#ef4444',
-                        lineWidth: 2,
-                        crosshairMarkerVisible: false,
-                        title: '强平价线'
-                    });
-
-                    this.liqLine.setData([
-                        { time: start, value: this.simLiqPrice },
-                        { time: end, value: this.simLiqPrice }
-                    ]);
-                },
-
-                drawTPSLLines() {
-                    const start = this.klines[0].time;
-                    const end = this.klines[this.klines.length - 1].time;
-
-                    // 清理旧线
-                    if (this.stopLine) this.chart.removeSeries(this.stopLine);
-                    if (this.takeLine) this.chart.removeSeries(this.takeLine);
-
-                    // 止损线（红）
-                    this.stopLine = this.chart.addSeries(LightweightCharts.LineSeries, {
-                        color: '#f59e0b',
-                        lineWidth: 2,
-                        lineStyle: LightweightCharts.LineStyle.Dashed,
-                        title: '止损价'
-                    });
-                    this.stopLine.setData([
-                        { time: start, value: this.simStopPrice },
-                        { time: end, value: this.simStopPrice }
-                    ]);
-
-                    // 止盈线（绿）
-                    this.takeLine = this.chart.addSeries(LightweightCharts.LineSeries, {
-                        color: '#22c55e',
-                        lineWidth: 2,
-                        lineStyle: LightweightCharts.LineStyle.Dashed,
-                        title: '止盈价'
-                    });
-                    this.takeLine.setData([
-                        { time: start, value: this.simTakePrice },
-                        { time: end, value: this.simTakePrice }
-                    ]);
-                },
-            }
-        }).mount('#app');
-    </script>
+                // 止盈线（绿）
+                this.takeLine = this.chart.addSeries(LightweightCharts.LineSeries, {
+                    color: '#22c55e',
+                    lineWidth: 2,
+                    lineStyle: LightweightCharts.LineStyle.Dashed,
+                    title: '止盈价'
+                });
+                this.takeLine.setData([
+                    {time: start, value: this.simTakePrice},
+                    {time: end, value: this.simTakePrice}
+                ]);
+            },
+        }
+    }).mount('#app');
+</script>
 </body>
 
 </html>
