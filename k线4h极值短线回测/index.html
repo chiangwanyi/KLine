@@ -131,6 +131,7 @@
                  class="border border-border p-2 mb-2 rounded text-xs"
                  :class="g.id === activeTradeGroupId ? 'bg-primary' : ''">
 
+                <!-- 交易组头部 -->
                 <div class="flex justify-between items-center mb-1">
                     <span class="font-bold">{{ g.name }}</span>
                     <button class="text-up"
@@ -139,20 +140,62 @@
                     </button>
                 </div>
 
+                <!-- 资金信息 -->
                 <div class="flex justify-between opacity-70">
                     <span>初始资金</span>
                     <span>{{ g.initialBalance.toFixed(2) }}</span>
                 </div>
-                <div class="flex justify-between">
+                <div class="flex justify-between mb-1">
                     <span>当前资金</span>
                     <span :class="g.balance >= g.initialBalance ? 'text-up' : 'text-down'">
-        {{ g.balance.toFixed(2) }}
-      </span>
+      {{ g.balance.toFixed(2) }}
+    </span>
                 </div>
 
+                <!-- ===== 交易记录列表（仅激活时显示） ===== -->
+                <div v-if="g.id === activeTradeGroupId"
+                     class="mt-2 border-t border-border pt-2 max-h-[200px] overflow-y-auto scrollbar-thin scrollbar-thumb-color">
+
+                    <div v-if="g.trades.length === 0"
+                         class="text-textLight text-center py-2 opacity-60">
+                        暂无交易记录
+                    </div>
+
+                    <div v-for="(t, i) in g.trades"
+                         :key="i"
+                         class="border border-border rounded p-1 mb-1 text-[11px]"
+                         :class="t.pnlNet >= 0 ? 'bg-up/10' : 'bg-down/10'">
+
+                        <!-- 第一行：方向 & 结果 -->
+                        <div class="flex justify-between">
+        <span :class="t.side === 'long' ? 'text-up' : 'text-down'">
+          {{ t.side === 'long' ? '开多' : '开空' }}
+        </span>
+                            <span :class="t.result === 'TP' ? 'text-up' : 'text-down'">
+          {{ t.result }}
+        </span>
+                        </div>
+
+                        <!-- 第二行：价格 -->
+                        <div class="flex justify-between opacity-80">
+                            <span>开 {{ t.entryPrice.toFixed(2) }}</span>
+                            <span>平 {{ t.exitPrice.toFixed(2) }}</span>
+                        </div>
+
+                        <!-- 第三行：盈亏 -->
+                        <div class="flex justify-between">
+                            <span>数量 {{ t.qty }}</span>
+                            <span :class="t.pnlNet >= 0 ? 'text-up' : 'text-down'">
+          {{ t.pnlNet.toFixed(4) }} USDT
+        </span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 删除交易组 -->
                 <button class="mt-1 w-full bg-border text-xs py-1 rounded"
                         @click="removeTradeGroup(g.id)">
-                    删除
+                    删除交易组
                 </button>
             </div>
 
@@ -299,7 +342,8 @@
                 </div>
             </div>
             <div class="text-[11px] text-textLight opacity-60 mt-2">点击图表中的 K 线 → 使用该 K 线开盘价模拟开仓</div>
-            <button @click="startTrade" class="w-full mt-2 bg-up hover:opacity-80 text-xs py-2 rounded">开始交易</button>
+            <button @click="startTrade" class="w-full mt-2 bg-up hover:opacity-80 text-xs py-2 rounded">开始交易
+            </button>
         </div>
         <!-- 技术指标 - EMA -->
         <div class="panel border border-border mb-3 p-3 rounded bg-secondary/80">
@@ -1208,7 +1252,7 @@
                 }
 
                 /* ========= 4️⃣ 止盈价（RR） ========= */
-                if (!this.simTakePrice) {
+                // if (!this.simTakePrice) {
                     const risk = side === 'long'
                         ? price - this.simStopPrice
                         : this.simStopPrice - price;
@@ -1218,7 +1262,7 @@
                             ? price + risk * this.simRR
                             : price - risk * this.simRR;
                     }
-                }
+                // }
 
                 /* ========= 5️⃣ 手续费 ========= */
                 // 挂单开仓手续费
