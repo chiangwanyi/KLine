@@ -489,8 +489,8 @@
 
                 // 核心配置项
                 symbol: 'BTCUSDT',
-                interval: '5m',
-                timezone: 'America/New_York',
+                interval: '1m',
+                timezone: 'Asia/Shanghai',
                 startTime: '',
                 endTime: '',
                 selectedDate: '',
@@ -788,11 +788,15 @@
                     if (!param.time) return;
                     const k = this.klines.find(k => k.time === param.time);
                     if (!k) return;
-
+                    // 找到前一根 k 线：时间小于当前 k.time 的所有 k 线中，时间最大的那一根
+                    const prevK = this.klines
+                        .filter(item => item.time < k.time) // 筛选所有早于当前 k 线的项
+                        .sort((a, b) => b.time - a.time) // 按时间倒序排列
+                        .at(0); // 取第一个（即最接近当前 k 线的前一根）
                     this.simEntryPrice = k.open;
                     this.simStopPrice = null; // 重置，防止旧 SL 污染
                     this.simTakePrice = null;
-                    this.calcContractSim();
+                    this.calcContractSim(prevK);
                 });
             },
 
@@ -1223,7 +1227,7 @@
              * 合约计算器（唯一计算入口）
              * UI 的所有输入变化都只能调用这个方法
              */
-            calcContractSim() {
+            calcContractSim(prevK) {
                 if (!this.simEntryPrice || !this.simQty || !this.simLeverage) return;
 
                 const price = this.simEntryPrice;
@@ -1248,7 +1252,15 @@
 
                 /* ========= 3️⃣ 止损价（允许手动覆盖） ========= */
                 if (!this.simStopPrice) {
-                    this.simStopPrice = (price + this.simLiqPrice) / 2;
+                    if (!prevK) {
+                        this.simStopPrice = (price + this.simLiqPrice) / 2;
+                    } else {
+                        if (side === 'long') {
+                            this.simStopPrice = prevK.low;
+                        } else {
+                            this.simStopPrice = prevK.high;
+                        }
+                    }
                 }
 
                 /* ========= 4️⃣ 止盈价（RR） ========= */

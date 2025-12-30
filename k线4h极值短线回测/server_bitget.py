@@ -1,10 +1,14 @@
 # server.py
-from fastapi import FastAPI, Query # type: ignore
-from fastapi.middleware.cors import CORSMiddleware # type: ignore
-import requests # type: ignore
+from fastapi import FastAPI, Query
+from fastapi.middleware.cors import CORSMiddleware
+import requests
 from typing import Dict, Tuple, List
 from datetime import datetime
 from zoneinfo import ZoneInfo
+import threading
+import json
+import time
+import websocket
 
 app = FastAPI()
 
@@ -15,103 +19,147 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-BINANCE_FAPI = "https://api.bitget.com/api/v2/mix/market/candles"
+REST_API = "https://api.bitget.com/api/v2/mix/market/candles"
 
 # ============================
-# 🔥 最近一次 K 线缓存
+# 🔥 K 线缓存
 # ============================
 KLINE_CACHE: Dict[str, Dict] = {
     "key": None,
-    "data": None
+    "data": []
 }
 
+# ============================
+# WebSocket 状态
+# ============================
+WS_RUNNING = False
+WS_SYMBOL = None
+WS_INTERVAL = None
+
 
 # ============================
-# ✅ 本地时间 + 时区 → UTC(ms)
+# 工具函数
 # ============================
 def zoned_local_to_utc_ms(iso_local: str, timezone: str) -> int:
-    local_dt = datetime.strptime(iso_local, "%Y-%m-%dT%H:%M")
-    zoned_dt = local_dt.replace(tzinfo=ZoneInfo(timezone))
-    utc_dt = zoned_dt.astimezone(ZoneInfo("UTC"))
-    return int(utc_dt.timestamp() * 1000)
+    dt = datetime.strptime(iso_local, "%Y-%m-%dT%H:%M")
+    return int(dt.replace(tzinfo=ZoneInfo(timezone))
+               .astimezone(ZoneInfo("UTC")).timestamp() * 1000)
 
 
-# ============================
-# ✅ interval → 毫秒
-# ============================
 def interval_to_ms(interval: str) -> int:
     unit = interval[-1]
-    value = int(interval[:-1])
-
-    if unit == "m":
-        return value * 60 * 1000
-    if unit == "h":
-        return value * 60 * 60 * 1000
-    if unit == "d":
-        return value * 24 * 60 * 60 * 1000
-
-    raise ValueError(f"不支持的 interval: {interval}")
+    v = int(interval[:-1])
+    return {"m": v * 60000, "h": v * 3600000, "d": v * 86400000}[unit]
 
 
+def current_kline_open(interval_ms: int) -> int:
+    now = int(time.time() * 1000)
+    return now - (now % interval_ms)
+
+
+# ============================
+# WebSocket 处理
+# ============================
+def start_ws(symbol: str, interval: str):
+    global WS_RUNNING, WS_SYMBOL, WS_INTERVAL
+
+    if WS_RUNNING and WS_SYMBOL == symbol and WS_INTERVAL == interval:
+        return
+
+    WS_RUNNING = True
+    WS_SYMBOL = symbol
+    WS_INTERVAL = interval
+
+    def on_message(ws, msg):
+        data = json.loads(msg)
+        k = data.get("data")
+        if not k or not KLINE_CACHE["data"]:
+            return
+
+        t = int(k["ts"])
+        last = KLINE_CACHE["data"][-1]
+
+        candle = {
+            "time": t,
+            "open": float(k["open"]),
+            "high": float(k["high"]),
+            "low": float(k["low"]),
+            "close": float(k["close"]),
+            "volume": float(k["vol"]),
+        }
+
+        # 覆盖 or 追加
+        if t == last["time"]:
+            KLINE_CACHE["data"][-1] = candle
+        elif t > last["time"]:
+            KLINE_CACHE["data"].append(candle)
+
+    def run():
+        ws = websocket.WebSocketApp(
+            "wss://ws.bitget.com/mix/v1/stream",
+            on_message=on_message
+        )
+        ws.on_open = lambda ws: ws.send(json.dumps({
+            "op": "subscribe",
+            "args": [{
+                "instType": "mc",
+                "channel": f"candle{interval}",
+                "instId": symbol
+            }]
+        }))
+        ws.run_forever()
+
+    threading.Thread(target=run, daemon=True).start()
+
+
+# ============================
+# REST API
+# ============================
 @app.get("/api/klines")
 def get_klines(
     symbol: str = Query("BTCUSDT"),
     interval: str = Query("5m"),
-    start: str = Query(..., description="YYYY-MM-DDTHH:mm"),
-    end: str = Query(..., description="YYYY-MM-DDTHH:mm"),
-    timezone: str = Query(..., description="IANA Timezone"),
+    start: str = Query(...),
+    end: str = Query(...),
+    timezone: str = Query(...),
 ):
     cache_key: Tuple = (symbol, interval, start, end, timezone)
 
-    # ============================
-    # 命中缓存
-    # ============================
     if KLINE_CACHE["key"] == cache_key:
-        print("✅ 命中 K 线缓存")
         return KLINE_CACHE["data"]
 
-    print("🌐 请求 Binance K 线（自动分页）")
-
-    try:
-        start_utc_ms = zoned_local_to_utc_ms(start, timezone)
-        end_utc_ms = zoned_local_to_utc_ms(end, timezone)
-
-        if start_utc_ms >= end_utc_ms:
-            raise ValueError("startTime >= endTime")
-
-    except Exception as e:
-        return {"error": f"时间解析失败: {e}"}
-
+    start_ms = zoned_local_to_utc_ms(start, timezone)
+    end_ms = zoned_local_to_utc_ms(end, timezone)
     interval_ms = interval_to_ms(interval)
 
+    # ⭐ REST 只拉到当前K线开盘
+    rest_end = min(end_ms, current_kline_open(interval_ms))
+
     all_klines: List[dict] = []
-    fetch_start = start_utc_ms
+    fetch_start = start_ms
 
     while True:
-        resp = requests.get(
-            BINANCE_FAPI,
+        r = requests.get(
+            REST_API,
             params={
                 "symbol": symbol,
                 "interval": interval,
                 "startTime": fetch_start,
-                "endTime": end_utc_ms,
+                "endTime": rest_end,
                 "limit": 1000,
             },
             timeout=10
         )
-        resp.raise_for_status()
-        raw = resp.json().get("data", [])
-
+        raw = r.json().get("data", [])
         if not raw:
             break
 
         for k in raw:
-            open_time = int(k[0])
-            if open_time >= end_utc_ms:
+            t = int(k[0])
+            if t >= rest_end:
                 break
-
             all_klines.append({
-                "time": open_time,
+                "time": t,
                 "open": float(k[1]),
                 "high": float(k[2]),
                 "low": float(k[3]),
@@ -119,28 +167,21 @@ def get_klines(
                 "volume": float(k[5]),
             })
 
-        # ⭐ 下一次请求的起点（关键）
-        last_open_time = int(raw[-1][0])
-        next_start = last_open_time + interval_ms
-
-        if next_start >= end_utc_ms:
+        next_start = int(raw[-1][0]) + interval_ms
+        if next_start >= rest_end or len(raw) < 1000:
             break
-
         fetch_start = next_start
 
-        # Binance 安全保护（可选）
-        if len(raw) < 1000:
-            break
-
-    print(f"✅ 总共获取 {len(all_klines)} 条 K 线")
-
-    # 写入缓存
+    # 写缓存
     KLINE_CACHE["key"] = cache_key
     KLINE_CACHE["data"] = all_klines
+
+    # 🚀 启动 WebSocket 补偿今天
+    start_ws(symbol, interval)
 
     return all_klines
 
 
 if __name__ == "__main__":
-    import uvicorn # type: ignore
+    import uvicorn
     uvicorn.run("server:app", host="127.0.0.1", port=8001, reload=True)
