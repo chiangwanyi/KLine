@@ -2,7 +2,7 @@
 from fastapi import FastAPI, Query # type: ignore
 from fastapi.middleware.cors import CORSMiddleware # type: ignore
 import requests # type: ignore
-from typing import Dict, Tuple
+from typing import Dict, Tuple, List
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -21,39 +21,42 @@ BINANCE_FAPI = "https://fapi.binance.com/fapi/v1/klines"
 # 🔥 最近一次 K 线缓存
 # ============================
 KLINE_CACHE: Dict[str, Dict] = {
-    "key": None,   # (symbol, interval, start, end, timezone)
+    "key": None,
     "data": None
 }
 
 
 # ============================
-# ✅ 核心函数：本地时间 + 时区 → UTC 毫秒
+# ✅ 本地时间 + 时区 → UTC(ms)
 # ============================
 def zoned_local_to_utc_ms(iso_local: str, timezone: str) -> int:
-    """
-    iso_local: YYYY-MM-DDTHH:mm
-    timezone: IANA 时区，如 America/New_York
-    return: UTC 毫秒时间戳
-    """
-    # 1️⃣ 解析“纯本地时间”（不带时区）
     local_dt = datetime.strptime(iso_local, "%Y-%m-%dT%H:%M")
-
-    # 2️⃣ 绑定指定时区（这是关键）
     zoned_dt = local_dt.replace(tzinfo=ZoneInfo(timezone))
-
-    # 3️⃣ 转 UTC
     utc_dt = zoned_dt.astimezone(ZoneInfo("UTC"))
-
-    # 4️⃣ 转毫秒时间戳
     return int(utc_dt.timestamp() * 1000)
+
+
+# ============================
+# ✅ interval → 毫秒
+# ============================
+def interval_to_ms(interval: str) -> int:
+    unit = interval[-1]
+    value = int(interval[:-1])
+
+    if unit == "m":
+        return value * 60 * 1000
+    if unit == "h":
+        return value * 60 * 60 * 1000
+    if unit == "d":
+        return value * 24 * 60 * 60 * 1000
+
+    raise ValueError(f"不支持的 interval: {interval}")
 
 
 @app.get("/api/klines")
 def get_klines(
     symbol: str = Query("BTCUSDT"),
     interval: str = Query("5m"),
-
-    # 🔴 前端现在传字符串，不是 int
     start: str = Query(..., description="YYYY-MM-DDTHH:mm"),
     end: str = Query(..., description="YYYY-MM-DDTHH:mm"),
     timezone: str = Query(..., description="IANA Timezone"),
@@ -67,57 +70,75 @@ def get_klines(
         print("✅ 命中 K 线缓存")
         return KLINE_CACHE["data"]
 
-    print("🌐 请求 Binance K 线")
+    print("🌐 请求 Binance K 线（自动分页）")
 
     try:
-        # ⭐ 核心转换：在后端统一完成
         start_utc_ms = zoned_local_to_utc_ms(start, timezone)
         end_utc_ms = zoned_local_to_utc_ms(end, timezone)
 
         if start_utc_ms >= end_utc_ms:
             raise ValueError("startTime >= endTime")
 
-        print(
-            f"⏱ 本地时间({timezone}): {start} ~ {end}\n"
-            f"🌍 UTC(ms): {start_utc_ms} ~ {end_utc_ms}"
-        )
-
     except Exception as e:
         return {"error": f"时间解析失败: {e}"}
 
-    resp = requests.get(
-        BINANCE_FAPI,
-        params={
-            "symbol": symbol,
-            "interval": interval,
-            "startTime": start_utc_ms,
-            "endTime": end_utc_ms,
-            "limit": 1000,
-        },
-        timeout=10
-    )
-    resp.raise_for_status()
-    raw = resp.json()
+    interval_ms = interval_to_ms(interval)
 
-    print(f"✅ 获取 {len(raw)} 条 K 线")
+    all_klines: List[dict] = []
+    fetch_start = start_utc_ms
 
-    data = [
-        {
-            "time": int(k[0]),      # UTC 毫秒
-            "open": float(k[1]),
-            "high": float(k[2]),
-            "low": float(k[3]),
-            "close": float(k[4]),
-            "volume": float(k[5]),
-        }
-        for k in raw
-    ]
+    while True:
+        resp = requests.get(
+            BINANCE_FAPI,
+            params={
+                "symbol": symbol,
+                "interval": interval,
+                "startTime": fetch_start,
+                "endTime": end_utc_ms,
+                "limit": 1000,
+            },
+            timeout=10
+        )
+        resp.raise_for_status()
+        raw = resp.json()
+
+        if not raw:
+            break
+
+        for k in raw:
+            open_time = int(k[0])
+            if open_time >= end_utc_ms:
+                break
+
+            all_klines.append({
+                "time": open_time,
+                "open": float(k[1]),
+                "high": float(k[2]),
+                "low": float(k[3]),
+                "close": float(k[4]),
+                "volume": float(k[5]),
+            })
+
+        # ⭐ 下一次请求的起点（关键）
+        last_open_time = int(raw[-1][0])
+        next_start = last_open_time + interval_ms
+
+        if next_start >= end_utc_ms:
+            break
+
+        fetch_start = next_start
+
+        # Binance 安全保护（可选）
+        if len(raw) < 1000:
+            break
+
+    print(f"✅ 总共获取 {len(all_klines)} 条 K 线")
 
     # 写入缓存
     KLINE_CACHE["key"] = cache_key
-    KLINE_CACHE["data"] = data
+    KLINE_CACHE["data"] = all_klines
 
-    return data
+    return all_klines
 
 
 if __name__ == "__main__":
