@@ -52,6 +52,9 @@
             .card {
                 @apply bg-secondary/80 border border-border rounded p-3 mb-3;
             }
+            .tool-active {
+                @apply bg-[#475569] ring-1 ring-blue-500 text-textHighlight;
+            }
         }
     </style>
 </head>
@@ -64,17 +67,20 @@
             <div class="card">
                 <h3 class="text-textHighlight text-sm mb-2 pb-2 border-b border-border">绘图工具</h3>
                 <div class="grid grid-cols-2 gap-2">
-                    <button class="btn-secondary" :class="{ 'bg-[#475569]': activeTool === 'cursor' }"
+                    <button class="btn-secondary" :class="{ 'tool-active': activeTool ===  'cursor' }"
                         @click="setTool('cursor')">查看K线</button>
 
-                    <button class="btn-secondary" :class="{ 'bg-[#475569]': activeTool === 'trendline' }"
+                    <button class="btn-secondary" :class="{ 'tool-active': activeTool === 'trendline' }"
                         @click="setTool('trendline')">趋势线</button>
 
-                    <button class="btn-secondary" :class="{ 'bg-[#475569]': activeTool === 'rect' }"
+                    <button class="btn-secondary" :class="{ 'tool-active': activeTool ===  'rect' }"
                         @click="setTool('rect')">矩形</button>
 
-                    <button class="btn-secondary" :class="{ 'bg-[#475569]': activeTool === 'rr' }"
+                    <button class="btn-secondary" :class="{ 'tool-active': activeTool === 'rr' }"
                         @click="setTool('rr')">多空盈亏比</button>
+                    <button class="btn-secondary col-span-2 text-down" @click="clearAllOverlays">
+                        清除所有绘图
+                    </button>
                 </div>
             </div>
 
@@ -236,6 +242,9 @@
                     rrTemp: null,          // 临时盈亏比数据
                     currentMouseX: 0,      // 当前鼠标X坐标
                     currentMouseY: 0,      // 当前鼠标Y坐标
+
+                    ema20Series: null,
+
                     // API基础地址
                     apiBaseUrl: 'http://localhost:8880'
                 };
@@ -270,7 +279,10 @@
                  */
                 setTool(tool) {
                     this.activeTool = tool;
-                    // 清除临时绘制状态
+
+                    document.body.style.cursor =
+                        tool === 'cursor' ? 'default' : 'crosshair';
+
                     this.overlayTempPoint = null;
                     this.rectTemp = null;
                     this.rrTemp = null;
@@ -309,6 +321,32 @@
                         wickUpColor: '#22c55e',
                         wickDownColor: '#ef4444'
                     });
+
+                    // 创建EMA20系列
+                    this.ema20Series = this.chart.addSeries(
+                        LightweightCharts.LineSeries,
+                        {
+                            color: 'rgba(255,255,0,0.6)', // 蓝色，略浅
+                            lineWidth: 2,
+                        }
+                    );
+                },
+                calculateEMA(data, period = 20) {
+                    const k = 2 / (period + 1);
+                    let ema = null;
+
+                    return data.map((item, index) => {
+                        const close = item.close;
+                        if (ema === null) {
+                            ema = close; // 第一根
+                        } else {
+                            ema = close * k + ema * (1 - k);
+                        }
+                        return {
+                            time: item.time,
+                            value: Number(ema.toFixed(4))
+                        };
+                    });
                 },
                 /**
                  * 初始化Overlay
@@ -322,6 +360,18 @@
                     // 图表变化时重绘
                     this.chart.timeScale().subscribeVisibleTimeRangeChange(this.renderOverlay);
                     this.chart.subscribeCrosshairMove(this.renderOverlay);
+                },
+                clearAllOverlays() {
+                    this.trendLines = [];
+                    this.rects = [];
+                    this.rrTools = [];
+
+                    this.overlayTempPoint = null;
+                    this.rectTemp = null;
+                    this.rrTemp = null;
+
+                    this.renderOverlay();
+                    this.showOperateMsg('已清除所有绘图元素', true);
                 },
                 /**
                  * 调整Overlay大小
@@ -362,7 +412,7 @@
                     this.trendLines.forEach(line => {
                         // 增加严格的空值检查
                         if (!line || !line.t1 || !line.t2 || !line.p1 || !line.p2) return;
-                        
+
                         const x1 = this.chart.timeScale().timeToCoordinate(line.t1);
                         const x2 = this.chart.timeScale().timeToCoordinate(line.t2);
                         const y1 = this.candleSeries.priceToCoordinate(line.p1);
@@ -396,7 +446,7 @@
                     this.rrTools.forEach(rr => {
                         // 增加严格的空值检查
                         if (!rr || !rr.entryTime || !rr.entryPrice || !rr.stopTime || !rr.stopPrice) return;
-                        
+
                         // 计算价格差值
                         const priceDiff = Math.abs(rr.entryPrice - rr.stopPrice);
                         const direction = rr.stopPrice > rr.entryPrice ? -1 : 1; // 1=向上，-1=向下
@@ -456,7 +506,7 @@
                     if (this.overlayTempPoint && this.activeTool === 'trendline') {
                         // 增加空值检查
                         if (!this.overlayTempPoint.t || !this.overlayTempPoint.p) return;
-                        
+
                         const time = this.chart.timeScale().coordinateToTime(this.currentMouseX);
                         const price = this.candleSeries.coordinateToPrice(this.currentMouseY);
                         if (!time || price == null) return;
@@ -488,10 +538,10 @@
                     if (this.rrTemp && this.activeTool === 'rr') {
                         // 增加空值检查
                         if (!this.rrTemp || !this.rrTemp.entryTime || !this.rrTemp.entryPrice) return;
-                        
+
                         // 计算当前拖拽的止损价格
                         const currentStopPrice = this.rrTemp.stopPrice || this.rrTemp.entryPrice;
-                        
+
                         // 只在有价格差时才显示目标预览
                         if (Math.abs(this.rrTemp.entryPrice - currentStopPrice) > 0) {
                             // 计算价格差值
@@ -555,7 +605,7 @@
                     if (!svg || !rect || rect.t1 == null || rect.t2 == null || rect.p1 == null || rect.p2 == null) {
                         return;
                     }
-                    
+
                     // 先检查时间值是否有效
                     let x1, x2, y1, y2;
                     try {
@@ -603,7 +653,7 @@
                     if (!svg || !rect || rect.t1 == null || rect.t2 == null || rect.p1 == null || rect.p2 == null) {
                         return;
                     }
-                    
+
                     // 先检查时间值是否有效
                     let x1, x2, y1, y2;
                     try {
@@ -663,7 +713,7 @@
                     bottomLine.setAttribute('stroke-opacity', '0.8');
                     bottomLine.setAttribute('stroke-dasharray', '4,2'); // 虚线样式
                     svg.appendChild(bottomLine);
-                    
+
                     // 注意：不绘制左右边框，实现去掉左右边框的效果
                 },
                 /**
@@ -701,7 +751,7 @@
                     } else if (this.activeTool === 'rr' && this.rrTemp) {
                         // 增加空值检查
                         if (!this.rrTemp) return;
-                        
+
                         const t = this.chart.timeScale().coordinateToTime(e.offsetX);
                         const p = this.candleSeries.coordinateToPrice(e.offsetY);
                         if (!t || p == null) return;
@@ -727,9 +777,9 @@
                             this.rrTemp = null;
                             return;
                         }
-                        
+
                         // 确保盈亏比矩形有实际大小
-                        if (this.rrTemp.entryTime !== this.rrTemp.stopTime && 
+                        if (this.rrTemp.entryTime !== this.rrTemp.stopTime &&
                             Math.abs(this.rrTemp.entryPrice - this.rrTemp.stopPrice) > 0) {
                             this.rrTools.push({ ...this.rrTemp });
                             this.showOperateMsg('盈亏比工具绘制完成，已自动生成1/2/3倍目标位', true);
@@ -887,6 +937,8 @@
                             close: parseFloat(item[4])
                         }));
                         this.candleSeries.setData(chartData);
+                        const ema20Data = this.calculateEMA(chartData, 20);
+                        this.ema20Series.setData(ema20Data);
                         this.chart.timeScale().fitContent();
 
                         this.showOperateMsg(`成功加载${this.targetStep}根K线`, true);
@@ -907,6 +959,7 @@
                     this.currentKlineData = [];
                     this.operateMsg = '';
                     this.candleSeries.setData([]);
+                    this.ema20Series.setData([]);
                     this.currentKline = null;
                     this.tooltipPos.opacity = 0;
                     // 清空所有绘图元素
@@ -981,6 +1034,8 @@
                             close: parseFloat(item[4])
                         }));
                         this.candleSeries.setData(chartData);
+                        const ema20Data = this.calculateEMA(chartData, 20);
+                        this.ema20Series.setData(ema20Data);
                         this.chart.timeScale().fitContent();
 
                         this.showOperateMsg(`当前步数：${targetStep}`, true);
@@ -1033,4 +1088,5 @@
         }).mount('#app');
     </script>
 </body>
+
 </html>
