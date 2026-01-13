@@ -1026,7 +1026,7 @@
 
                         // 转换数据格式并渲染图表
                         const chartData = this.currentKlineData.map(item => ({
-                            time: Math.floor(item[0] / 1000),
+                            time: Math.floor(item[0] / 1000 + 8*60*60),
                             open: parseFloat(item[1]),
                             high: parseFloat(item[2]),
                             low: parseFloat(item[3]),
