@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,7 +9,7 @@
     <script src="https://unpkg.com/vue@3"></script>
     <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
-    
+
     <script>
         tailwind.config = {
             theme: {
@@ -55,468 +56,532 @@
         }
     </style>
 </head>
+
 <body class="bg-primary text-text font-sans min-h-screen m-0 p-0">
-<div id="app" class="flex h-screen overflow-hidden">
-    <!-- 左侧功能区 -->
-    <div class="left w-[320px] bg-secondary p-2 overflow-y-auto border-r border-border">
-        <h1 class="text-textHighlight text-lg mb-4 text-center">BTCUSDT 5M K线管理</h1>
+    <div id="app" class="flex h-screen overflow-hidden">
+        <!-- 左侧功能区 -->
+        <div class="left w-[320px] bg-secondary p-2 overflow-y-auto border-r border-border">
+            <h1 class="text-textHighlight text-lg mb-4 text-center">BTCUSDT 5M K线管理</h1>
 
-        <!-- 合并后的K线加载与回放控制区 -->
-        <div class="card">
-            <h3 class="text-textHighlight text-sm mb-2 pb-2 border-b border-border">K线加载与回放</h3>
-            <div class="space-y-3">
-                <!-- 日期输入 -->
-                <div>
-                    <label class="text-textLight text-xs block mb-1">日期 (YYYYMMDD 或 YYYY-MM-DD)</label>
-                    <input 
-                        v-model="targetDate" 
-                        type="text" 
-                        placeholder="例如：20250201 或 2025-02-01"
-                        class="input-field w-full"
-                    >
+            <!-- 合并后的K线加载与回放控制区 -->
+            <div class="card">
+                <h3 class="text-textHighlight text-sm mb-2 pb-2 border-b border-border">K线加载与回放</h3>
+                <div class="space-y-3">
+                    <!-- 日期输入 -->
+                    <div>
+                        <label class="text-textLight text-xs block mb-1">日期 (YYYYMMDD 或 YYYY-MM-DD)</label>
+                        <input v-model="targetDate" type="text" placeholder="例如：20250201 或 2025-02-01"
+                            class="input-field w-full">
+                    </div>
+                    <!-- 步数输入 + 加载按钮 -->
+                    <div class="flex gap-2">
+                        <input v-model.number="targetStep" type="number" min="1" max="288" placeholder="输入步数(1-288)"
+                            class="input-field flex-1" @input="validateStep">
+                        <button @click="loadKlineByStep"
+                            :disabled="isLoading || !targetDate || !targetStep || targetStep < 1 || targetStep > 288"
+                            class="btn-primary whitespace-nowrap">
+                            <span v-if="!isLoading">加载</span>
+                            <span v-else>加载中...</span>
+                        </button>
+                    </div>
+                    <!-- 回放进度 -->
+                    <div class="flex items-center justify-between text-xs">
+                        <span class="text-textLight">当前进度：{{ currentStep }} / {{ maxStep }}</span>
+                        <span class="text-textHighlight font-mono">{{ currentStep }}根K线</span>
+                    </div>
+                    <!-- 回放控制按钮 -->
+                    <div class="flex gap-2">
+                        <button @click="resetPlayback" :disabled="isLoading || currentStep === 0"
+                            class="btn-secondary flex-1">
+                            重置
+                        </button>
+                        <button @click="prevStep" :disabled="isLoading || currentStep <= 1"
+                            class="btn-secondary flex-1">
+                            上一步
+                        </button>
+                        <button @click="nextStep" :disabled="isLoading || currentStep >= maxStep"
+                            class="btn-primary flex-1">
+                            下一步
+                        </button>
+                    </div>
+                    <!-- 提示信息 -->
+                    <div v-if="operateMsg" class="text-sm mt-2" :class="operateSuccess ? 'text-up' : 'text-down'">
+                        {{ operateMsg }}
+                    </div>
                 </div>
-                <!-- 步数输入 + 加载按钮 -->
-                <div class="flex gap-2">
-                    <input 
-                        v-model.number="targetStep" 
-                        type="number" 
-                        min="1" 
-                        max="288" 
-                        placeholder="输入步数(1-288)"
-                        class="input-field flex-1"
-                        @input="validateStep"
-                    >
-                    <button 
-                        @click="loadKlineByStep" 
-                        :disabled="isLoading || !targetDate || !targetStep || targetStep < 1 || targetStep > 288"
-                        class="btn-primary whitespace-nowrap"
-                    >
-                        <span v-if="!isLoading">加载</span>
-                        <span v-else>加载中...</span>
-                    </button>
+            </div>
+
+            <!-- 数据信息区域 -->
+            <div class="card">
+                <h3 class="text-textHighlight text-sm mb-2 pb-2 border-b border-border">当前数据信息</h3>
+                <div v-if="currentKlineData.length > 0" class="text-xs space-y-2">
+                    <div class="flex justify-between">
+                        <span class="text-textLight">最新K线时间：</span>
+                        <span class="text-textHighlight">{{
+                            formatTimestamp(currentKlineData[currentKlineData.length-1][0]) }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-textLight">开盘价：</span>
+                        <span class="text-textHighlight">{{ currentKlineData[currentKlineData.length-1][1] }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-textLight">收盘价：</span>
+                        <span
+                            :class="currentKlineData[currentKlineData.length-1][4] >= currentKlineData[currentKlineData.length-1][1] ? 'text-up' : 'text-down'">
+                            {{ currentKlineData[currentKlineData.length-1][4] }}
+                        </span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-textLight">最高价：</span>
+                        <span class="text-textHighlight">{{ currentKlineData[currentKlineData.length-1][2] }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-textLight">最低价：</span>
+                        <span class="text-textHighlight">{{ currentKlineData[currentKlineData.length-1][3] }}</span>
+                    </div>
                 </div>
-                <!-- 回放进度 -->
-                <div class="flex items-center justify-between text-xs">
-                    <span class="text-textLight">当前进度：{{ currentStep }} / {{ maxStep }}</span>
-                    <span class="text-textHighlight font-mono">{{ currentStep }}根K线</span>
-                </div>
-                <!-- 回放控制按钮 -->
-                <div class="flex gap-2">
-                    <button 
-                        @click="resetPlayback" 
-                        :disabled="isLoading || currentStep === 0"
-                        class="btn-secondary flex-1"
-                    >
-                        重置
-                    </button>
-                    <button 
-                        @click="prevStep" 
-                        :disabled="isLoading || currentStep <= 1"
-                        class="btn-secondary flex-1"
-                    >
-                        上一步
-                    </button>
-                    <button 
-                        @click="nextStep" 
-                        :disabled="isLoading || currentStep >= maxStep"
-                        class="btn-primary flex-1"
-                    >
-                        下一步
-                    </button>
-                </div>
-                <!-- 提示信息 -->
-                <div v-if="operateMsg" class="text-sm mt-2" :class="operateSuccess ? 'text-up' : 'text-down'">
-                    {{ operateMsg }}
+                <div v-else class="text-xs text-textLight opacity-60">
+                    暂无数据，请先加载K线
                 </div>
             </div>
         </div>
 
-        <!-- 数据信息区域 -->
-        <div class="card">
-            <h3 class="text-textHighlight text-sm mb-2 pb-2 border-b border-border">当前数据信息</h3>
-            <div v-if="currentKlineData.length > 0" class="text-xs space-y-2">
-                <div class="flex justify-between">
-                    <span class="text-textLight">最新K线时间：</span>
-                    <span class="text-textHighlight">{{ formatTimestamp(currentKlineData[currentKlineData.length-1][0]) }}</span>
-                </div>
-                <div class="flex justify-between">
-                    <span class="text-textLight">开盘价：</span>
-                    <span class="text-textHighlight">{{ currentKlineData[currentKlineData.length-1][1] }}</span>
-                </div>
-                <div class="flex justify-between">
-                    <span class="text-textLight">收盘价：</span>
-                    <span
-                        :class="currentKlineData[currentKlineData.length-1][4] >= currentKlineData[currentKlineData.length-1][1] ? 'text-up' : 'text-down'">
-                        {{ currentKlineData[currentKlineData.length-1][4] }}
-                    </span>
-                </div>
-                <div class="flex justify-between">
-                    <span class="text-textLight">最高价：</span>
-                    <span class="text-textHighlight">{{ currentKlineData[currentKlineData.length-1][2] }}</span>
-                </div>
-                <div class="flex justify-between">
-                    <span class="text-textLight">最低价：</span>
-                    <span class="text-textHighlight">{{ currentKlineData[currentKlineData.length-1][3] }}</span>
-                </div>
-            </div>
-            <div v-else class="text-xs text-textLight opacity-60">
-                暂无数据，请先加载K线
-            </div>
-        </div>
-    </div>
-
-    <!-- 右侧图表区（沿用可运行代码的ref写法） -->
-    <div class="right flex-1 h-screen relative" ref="chartEl">
-        <!-- 悬浮提示框（可选保留） -->
-        <div class="kline-tooltip absolute z-10 bg-secondary border border-border rounded px-3 py-2 text-xs text-text pointer-events-none transition-opacity min-w-[180px]"
-             ref="tooltipEl"
-             :style="{ top: tooltipPos.top + 'px', left: tooltipPos.left + 'px', opacity: tooltipPos.opacity }">
-            <div v-if="currentKline" class="space-y-1">
-                <div class="flex justify-between">
-                    <span class="text-textLight">时间</span>
-                    <span class="text-textHighlight">{{ formatTimestamp(currentKline[0]) }}</span>
-                </div>
-                <div class="flex justify-between">
-                    <span class="text-textLight">开盘</span>
-                    <span class="text-textHighlight">{{ currentKline[1] }}</span>
-                </div>
-                <div class="flex justify-between">
-                    <span class="text-textLight">最高</span>
-                    <span class="text-textHighlight">{{ currentKline[2] }}</span>
-                </div>
-                <div class="flex justify-between">
-                    <span class="text-textLight">最低</span>
-                    <span class="text-textHighlight">{{ currentKline[3] }}</span>
-                </div>
-                <div class="flex justify-between">
-                    <span class="text-textLight">收盘</span>
-                    <span :class="currentKline[4] >= currentKline[1] ? 'text-up' : 'text-down'">
-                        {{ currentKline[4] }}
-                    </span>
+        <!-- 右侧图表区（沿用可运行代码的ref写法） -->
+        <div class="right flex-1 h-screen relative" ref="chartWrapper">
+            <div ref="chartEl" class="absolute inset-0"></div>
+            <!-- SVG Overlay -->
+            <svg ref="overlayEl" class="absolute inset-0 pointer-events-auto" style="z-index: 20"
+                @pointerdown="onOverlayPointerDown" @pointermove="onOverlayPointerMove"
+                @pointerup="onOverlayPointerUp"></svg>
+            <div class="kline-tooltip absolute z-10 bg-secondary border border-border rounded px-3 py-2 text-xs text-text pointer-events-none transition-opacity min-w-[180px]"
+                ref="tooltipEl"
+                :style="{ top: tooltipPos.top + 'px', left: tooltipPos.left + 'px', opacity: tooltipPos.opacity }">
+                <div v-if="currentKline" class="space-y-1">
+                    <div class="flex justify-between">
+                        <span class="text-textLight">时间</span>
+                        <span class="text-textHighlight">{{ formatTimestamp(currentKline[0]) }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-textLight">开盘</span>
+                        <span class="text-textHighlight">{{ currentKline[1] }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-textLight">最高</span>
+                        <span class="text-textHighlight">{{ currentKline[2] }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-textLight">最低</span>
+                        <span class="text-textHighlight">{{ currentKline[3] }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-textLight">收盘</span>
+                        <span :class="currentKline[4] >= currentKline[1] ? 'text-up' : 'text-down'">
+                            {{ currentKline[4] }}
+                        </span>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
-</div>
 
-<script>
-    const { createApp } = Vue
+    <script>
+        const { createApp } = Vue
 
-    createApp({
-        data() {
-            return {
-                // 图表核心实例（沿用可运行代码的写法）
-                chart: null,
-                candleSeries: null,
-                
-                // 业务数据
-                targetDate: '',        // 统一的目标日期
-                targetStep: 108,         // 手动输入的目标步数
-                currentStep: 0,        // 当前回放步数
-                maxStep: 288,          // 最大步数
-                isLoading: false,      // 加载状态
-                operateMsg: '',        // 操作提示信息
-                operateSuccess: false, // 操作是否成功
-                currentKlineData: [],  // 当前K线数据
-                currentKline: null,    // 悬浮的当前K线
-                tooltipPos: {          // 悬浮提示位置
-                    top: 0,
-                    left: 0,
-                    opacity: 0
-                },
-                
-                // API基础地址
-                apiBaseUrl: 'http://localhost:8880'
-            };
-        },
-        mounted() {
-            // 初始化图表（完全沿用可运行代码的初始化逻辑）
-            this.initChart();
-            // 默认填充当天日期
-            const today = new Date();
-            const formattedDate = today.toISOString().split('T')[0];
-            this.targetDate = formattedDate;
-            // 初始化十字光标监听
-            this.initCrosshairListener();
-            // 窗口大小监听
-            window.addEventListener('resize', this.handleWindowResize);
-        },
-        unmounted() {
-            window.removeEventListener('resize', this.handleWindowResize);
-        },
-        methods: {
-            /**
-             * 初始化图表（完全复用可运行代码的标准写法）
-             */
-            initChart() {
-                if (!this.$refs.chartEl) return;
+        createApp({
+            data() {
+                return {
+                    // 图表核心实例（沿用可运行代码的写法）
+                    chart: null,
+                    candleSeries: null,
 
-                // 创建图表实例
-                this.chart = LightweightCharts.createChart(this.$refs.chartEl, {
-                    layout: {background: {color: '#020617'}, textColor: '#cbd5f5'},
-                    grid: {vertLines: {color: '#1e293b'}, horzLines: {color: '#1e293b'}},
-                    timeScale: {timeVisible: true, secondsVisible: false},
-                    crosshair: {
-                        horzLine: {
-                            color: '#999',
-                            style: LightweightCharts.LineStyle.Dashed,
-                        },
-                        vertLine: {
-                            visible: true,
-                            color: '#666',
-                            style: LightweightCharts.LineStyle.Dashed,
-                        },
+                    // 业务数据
+                    targetDate: '',        // 统一的目标日期
+                    targetStep: 108,         // 手动输入的目标步数
+                    currentStep: 0,        // 当前回放步数
+                    maxStep: 288,          // 最大步数
+                    isLoading: false,      // 加载状态
+                    operateMsg: '',        // 操作提示信息
+                    operateSuccess: false, // 操作是否成功
+                    currentKlineData: [],  // 当前K线数据
+                    currentKline: null,    // 悬浮的当前K线
+                    tooltipPos: {          // 悬浮提示位置
+                        top: 0,
+                        left: 0,
+                        opacity: 0
                     },
-                    height: this.$refs.chartEl.clientHeight
-                });
+                    // === Overlay / Trend Line ===
+                    overlayDragging: false,
+                    overlayTempPoint: null,
 
-                // 创建K线系列（关键：使用LightweightCharts.CandlestickSeries）
-                this.candleSeries = this.chart.addSeries(LightweightCharts.CandlestickSeries, {
-                    upColor: '#22c55e',
-                    downColor: '#ef4444',
-                    borderUpColor: '#22c55e',
-                    borderDownColor: '#ef4444',
-                    wickUpColor: '#22c55e',
-                    wickDownColor: '#ef4444'
-                });
+                    trendLines: [
+                        // 示例：默认画一根
+                        // { t1, p1, t2, p2 }
+                    ],
+                    // API基础地址
+                    apiBaseUrl: 'http://localhost:8880'
+                };
             },
-
-            /**
-             * 初始化十字光标监听（悬浮提示）
-             */
-            initCrosshairListener() {
-                if (!this.chart || !this.candleSeries) return;
-
-                this.chart.subscribeCrosshairMove((param) => {
-                    const point = param.point;
-                    if (!point || !param.time) {
-                        this.currentKline = null;
-                        this.tooltipPos.opacity = 0;
-                        return;
-                    }
-
-                    // 匹配当前K线数据（适配你的数据格式：time在第0位）
-                    const currentKline = this.currentKlineData.find(k => Math.floor(k[0]/1000) === param.time);
-                    if (!currentKline) {
-                        this.currentKline = null;
-                        this.tooltipPos.opacity = 0;
-                        return;
-                    }
-                    this.currentKline = currentKline;
-
-                    // 计算提示框位置（边界处理）
-                    const chartRect = this.$refs.chartEl.getBoundingClientRect();
-                    const tooltipEl = this.$refs.tooltipEl;
-                    const tooltipWidth = tooltipEl.offsetWidth || 180;
-                    const tooltipHeight = tooltipEl.offsetHeight || 100;
-
-                    let left = point.x + 10;
-                    let top = point.y + 5;
-
-                    const maxLeft = chartRect.width - tooltipWidth - 10;
-                    const maxTop = chartRect.height - tooltipHeight - 10;
-                    left = Math.min(left, maxLeft);
-                    left = Math.max(left, 10);
-                    top = Math.min(top, maxTop);
-                    top = Math.max(top, 10);
-
-                    // 更新提示框位置
-                    this.tooltipPos = {
-                        top: top,
-                        left: left,
-                        opacity: 1
-                    };
-                });
+            mounted() {
+                // 初始化图表（完全沿用可运行代码的初始化逻辑）
+                this.initChart();
+                // 默认填充当天日期
+                const today = new Date();
+                const formattedDate = today.toISOString().split('T')[0];
+                this.targetDate = formattedDate;
+                // 初始化十字光标监听
+                this.initCrosshairListener();
+                // 窗口大小监听
+                window.addEventListener('resize', this.handleWindowResize);
+                this.initOverlay();
             },
-
-            /**
-             * 校验步数输入（限制1-288）
-             */
-            validateStep() {
-                if (this.targetStep < 1) {
-                    this.targetStep = 1;
-                } else if (this.targetStep > 288) {
-                    this.targetStep = 288;
-                }
+            unmounted() {
+                window.removeEventListener('resize', this.handleWindowResize);
             },
+            methods: {
+                /**
+                 * 初始化图表（完全复用可运行代码的标准写法）
+                 */
+                initChart() {
+                    if (!this.$refs.chartEl) return;
 
-            /**
-             * 加载指定日期和步数的K线数据
-             */
-            async loadKlineByStep() {
-                this.isLoading = true;
-                this.operateMsg = '';
-                try {
-                    // 调用后台接口（后台自动处理：有数据返回，无数据则下载后返回）
-                    const response = await fetch(`${this.apiBaseUrl}/get-kline`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Accept': 'application/json',
+                    // 创建图表实例
+                    this.chart = LightweightCharts.createChart(this.$refs.chartEl, {
+                        layout: { background: { color: '#020617' }, textColor: '#cbd5f5' },
+                        grid: { vertLines: { color: '#1e293b' }, horzLines: { color: '#1e293b' } },
+                        timeScale: { timeVisible: true, secondsVisible: false },
+                        crosshair: {
+                            horzLine: {
+                                color: '#999',
+                                style: LightweightCharts.LineStyle.Dashed,
+                            },
+                            vertLine: {
+                                visible: true,
+                                color: '#666',
+                                style: LightweightCharts.LineStyle.Dashed,
+                            },
                         },
-                        body: JSON.stringify({ 
-                            date: this.targetDate, 
-                            n: this.targetStep 
-                        }),
-                        credentials: 'include',
-                        cache: 'no-cache',
+                        height: this.$refs.chartEl.clientHeight
                     });
 
-                    if (!response.ok) {
-                        const errorText = await response.text();
-                        throw new Error(errorText || `请求失败：${response.status}`);
-                    }
-
-                    const result = await response.json();
-                    this.currentKlineData = result.data.kline_data;
-                    this.currentStep = this.targetStep;
-                    this.maxStep = result.data.kline_data.length > 288 ? result.data.kline_data.length : 288;
-                    
-                    // 转换数据格式并渲染图表（适配LightweightCharts）
-                    const chartData = this.currentKlineData.map(item => ({
-                        time: Math.floor(item[0]/1000), // 转换为秒级时间戳
-                        open: parseFloat(item[1]),
-                        high: parseFloat(item[2]),
-                        low: parseFloat(item[3]),
-                        close: parseFloat(item[4])
-                    }));
-                    this.candleSeries.setData(chartData);
-                    this.chart.timeScale().fitContent();
-                    
-                    this.showOperateMsg(`成功加载${this.targetStep}根K线`, true);
-                } catch (error) {
-                    console.error('加载K线失败：', error);
-                    this.showOperateMsg(`加载失败：${error.message}`, false);
-                } finally {
-                    this.isLoading = false;
-                }
-            },
-
-            /**
-             * 重置回放
-             */
-            resetPlayback() {
-                this.currentStep = 0;
-                this.targetStep = 1; // 重置输入框步数为1
-                this.currentKlineData = [];
-                this.operateMsg = '';
-                this.candleSeries.setData([]);
-                this.currentKline = null;
-                this.tooltipPos.opacity = 0;
-            },
-
-            /**
-             * 上一步
-             */
-            async prevStep() {
-                const targetStep = this.currentStep - 1;
-                await this.loadSpecifiedStep(targetStep);
-            },
-
-            /**
-             * 下一步
-             */
-            async nextStep() {
-                const targetStep = this.currentStep + 1;
-                await this.loadSpecifiedStep(targetStep);
-            },
-
-            /**
-             * 加载指定步数的K线（内部复用方法）
-             */
-            async loadSpecifiedStep(targetStep) {
-                if (!this.targetDate || targetStep < 1 || targetStep > 288) {
-                    this.showOperateMsg('参数错误', false);
-                    return;
-                }
-
-                this.isLoading = true;
-                this.operateMsg = '';
-                try {
-                    const response = await fetch(`${this.apiBaseUrl}/get-kline`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Accept': 'application/json',
-                        },
-                        body: JSON.stringify({ 
-                            date: this.targetDate, 
-                            n: targetStep 
-                        }),
-                        credentials: 'include',
-                        cache: 'no-cache',
+                    // 创建K线系列（关键：使用LightweightCharts.CandlestickSeries）
+                    this.candleSeries = this.chart.addSeries(LightweightCharts.CandlestickSeries, {
+                        upColor: '#22c55e',
+                        downColor: '#ef4444',
+                        borderUpColor: '#22c55e',
+                        borderDownColor: '#ef4444',
+                        wickUpColor: '#22c55e',
+                        wickDownColor: '#ef4444'
                     });
+                },
+                initOverlay() {
+                    this.resizeOverlay();
 
-                    if (!response.ok) {
-                        const errorText = await response.text();
-                        throw new Error(errorText || `请求失败：${response.status}`);
+                    window.addEventListener('resize', this.resizeOverlay);
+
+                    // 图表变化时重绘
+                    this.chart.timeScale().subscribeVisibleTimeRangeChange(this.renderOverlay);
+                    this.chart.subscribeCrosshairMove(this.renderOverlay);
+                },
+                resizeOverlay() {
+                    const el = this.$refs.overlayEl;
+                    const wrapper = this.$refs.chartWrapper;
+                    if (!el || !wrapper) return;
+
+                    el.setAttribute('width', wrapper.clientWidth);
+                    el.setAttribute('height', wrapper.clientHeight);
+
+                    this.renderOverlay();
+                },
+                renderOverlay() {
+                    const svg = this.$refs.overlayEl;
+                    if (!svg || !this.chart || !this.candleSeries) return;
+
+                    svg.innerHTML = '';
+
+                    this.trendLines.forEach(line => {
+                        const x1 = this.chart.timeScale().timeToCoordinate(line.t1);
+                        const x2 = this.chart.timeScale().timeToCoordinate(line.t2);
+                        const y1 = this.candleSeries.priceToCoordinate(line.p1);
+                        const y2 = this.candleSeries.priceToCoordinate(line.p2);
+
+                        if (x1 == null || x2 == null || y1 == null || y2 == null) return;
+
+                        const el = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                        el.setAttribute('x1', x1);
+                        el.setAttribute('y1', y1);
+                        el.setAttribute('x2', x2);
+                        el.setAttribute('y2', y2);
+                        el.setAttribute('stroke', '#2962ff');
+                        el.setAttribute('stroke-width', '2');
+
+                        svg.appendChild(el);
+                    });
+                },
+                onOverlayPointerDown(e) {
+                    const time = this.chart.timeScale().coordinateToTime(e.offsetX);
+                    const price = this.candleSeries.coordinateToPrice(e.offsetY);
+                    if (!time || price == null) return;
+
+                    if (!this.overlayTempPoint) {
+                        this.overlayTempPoint = { t: time, p: price };
+                    } else {
+                        this.trendLines.push({
+                            t1: this.overlayTempPoint.t,
+                            p1: this.overlayTempPoint.p,
+                            t2: time,
+                            p2: price
+                        });
+                        this.overlayTempPoint = null;
+                        this.renderOverlay();
                     }
+                },
+                onOverlayPointerMove(e) {
+                    if (!this.overlayTempPoint) return;
 
-                    const result = await response.json();
-                    this.currentKlineData = result.data.kline_data;
-                    this.currentStep = targetStep;
-                    this.targetStep = targetStep; // 同步输入框步数
-                    this.maxStep = result.data.kline_data.length > 288 ? result.data.kline_data.length : 288;
-                    
-                    // 转换数据格式并渲染图表
-                    const chartData = this.currentKlineData.map(item => ({
-                        time: Math.floor(item[0]/1000),
-                        open: parseFloat(item[1]),
-                        high: parseFloat(item[2]),
-                        low: parseFloat(item[3]),
-                        close: parseFloat(item[4])
-                    }));
-                    this.candleSeries.setData(chartData);
-                    this.chart.timeScale().fitContent();
-                    
-                    this.showOperateMsg(`当前步数：${targetStep}`, true);
-                } catch (error) {
-                    console.error('切换步数失败：', error);
-                    this.showOperateMsg(`切换失败：${error.message}`, false);
-                } finally {
-                    this.isLoading = false;
-                }
-            },
+                    const time = this.chart.timeScale().coordinateToTime(e.offsetX);
+                    const price = this.candleSeries.coordinateToPrice(e.offsetY);
+                    if (!time || price == null) return;
 
-            /**
-             * 显示操作提示信息
-             */
-            showOperateMsg(msg, isSuccess) {
-                this.operateMsg = msg;
-                this.operateSuccess = isSuccess;
-                // 3秒后自动清除提示
-                setTimeout(() => {
+                    this.renderOverlay();
+                },
+                onOverlayPointerUp() { },
+                /**
+                 * 初始化十字光标监听（悬浮提示）
+                 */
+                initCrosshairListener() {
+                    if (!this.chart || !this.candleSeries) return;
+
+                    this.chart.subscribeCrosshairMove((param) => {
+                        const point = param.point;
+                        if (!point || !param.time) {
+                            this.currentKline = null;
+                            this.tooltipPos.opacity = 0;
+                            return;
+                        }
+
+                        // 匹配当前K线数据（适配你的数据格式：time在第0位）
+                        const currentKline = this.currentKlineData.find(k => Math.floor(k[0] / 1000) === param.time);
+                        if (!currentKline) {
+                            this.currentKline = null;
+                            this.tooltipPos.opacity = 0;
+                            return;
+                        }
+                        this.currentKline = currentKline;
+
+                        // 计算提示框位置（边界处理）
+                        const chartRect = this.$refs.chartEl.getBoundingClientRect();
+                        const tooltipEl = this.$refs.tooltipEl;
+                        const tooltipWidth = tooltipEl.offsetWidth || 180;
+                        const tooltipHeight = tooltipEl.offsetHeight || 100;
+
+                        let left = point.x + 10;
+                        let top = point.y + 5;
+
+                        const maxLeft = chartRect.width - tooltipWidth - 10;
+                        const maxTop = chartRect.height - tooltipHeight - 10;
+                        left = Math.min(left, maxLeft);
+                        left = Math.max(left, 10);
+                        top = Math.min(top, maxTop);
+                        top = Math.max(top, 10);
+
+                        // 更新提示框位置
+                        this.tooltipPos = {
+                            top: top,
+                            left: left,
+                            opacity: 1
+                        };
+                    });
+                },
+
+                /**
+                 * 校验步数输入（限制1-288）
+                 */
+                validateStep() {
+                    if (this.targetStep < 1) {
+                        this.targetStep = 1;
+                    } else if (this.targetStep > 288) {
+                        this.targetStep = 288;
+                    }
+                },
+
+                /**
+                 * 加载指定日期和步数的K线数据
+                 */
+                async loadKlineByStep() {
+                    this.isLoading = true;
                     this.operateMsg = '';
-                }, 3000);
-            },
+                    try {
+                        // 调用后台接口（后台自动处理：有数据返回，无数据则下载后返回）
+                        const response = await fetch(`${this.apiBaseUrl}/get-kline`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                date: this.targetDate,
+                                n: this.targetStep
+                            }),
+                            credentials: 'include',
+                            cache: 'no-cache',
+                        });
 
-            /**
-             * 格式化时间戳
-             */
-            formatTimestamp(timestamp) {
-                if (!timestamp) return '';
-                // 兼容毫秒/秒级时间戳
-                const date = new Date(timestamp.toString().length > 10 ? timestamp : timestamp * 1000);
-                return new Intl.DateTimeFormat('zh-CN', {
-                    year: 'numeric',
-                    month: '2-digit',
-                    day: '2-digit',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    second: '2-digit'
-                }).format(date);
-            },
+                        if (!response.ok) {
+                            const errorText = await response.text();
+                            throw new Error(errorText || `请求失败：${response.status}`);
+                        }
 
-            /**
-             * 处理窗口大小变化
-             */
-            handleWindowResize() {
-                if (!this.chart || !this.$refs.chartEl) return;
-                this.chart.applyOptions({height: this.$refs.chartEl.clientHeight});
-                if (this.currentKlineData.length > 0) this.chart.timeScale().fitContent();
+                        const result = await response.json();
+                        this.currentKlineData = result.data.kline_data;
+                        this.currentStep = this.targetStep;
+                        this.maxStep = result.data.kline_data.length > 288 ? result.data.kline_data.length : 288;
+
+                        // 转换数据格式并渲染图表（适配LightweightCharts）
+                        const chartData = this.currentKlineData.map(item => ({
+                            time: Math.floor(item[0] / 1000), // 转换为秒级时间戳
+                            open: parseFloat(item[1]),
+                            high: parseFloat(item[2]),
+                            low: parseFloat(item[3]),
+                            close: parseFloat(item[4])
+                        }));
+                        this.candleSeries.setData(chartData);
+                        this.chart.timeScale().fitContent();
+
+                        this.showOperateMsg(`成功加载${this.targetStep}根K线`, true);
+                    } catch (error) {
+                        console.error('加载K线失败：', error);
+                        this.showOperateMsg(`加载失败：${error.message}`, false);
+                    } finally {
+                        this.isLoading = false;
+                    }
+                },
+
+                /**
+                 * 重置回放
+                 */
+                resetPlayback() {
+                    this.currentStep = 0;
+                    this.targetStep = 1; // 重置输入框步数为1
+                    this.currentKlineData = [];
+                    this.operateMsg = '';
+                    this.candleSeries.setData([]);
+                    this.currentKline = null;
+                    this.tooltipPos.opacity = 0;
+                },
+
+                /**
+                 * 上一步
+                 */
+                async prevStep() {
+                    const targetStep = this.currentStep - 1;
+                    await this.loadSpecifiedStep(targetStep);
+                },
+
+                /**
+                 * 下一步
+                 */
+                async nextStep() {
+                    const targetStep = this.currentStep + 1;
+                    await this.loadSpecifiedStep(targetStep);
+                },
+
+                /**
+                 * 加载指定步数的K线（内部复用方法）
+                 */
+                async loadSpecifiedStep(targetStep) {
+                    if (!this.targetDate || targetStep < 1 || targetStep > 288) {
+                        this.showOperateMsg('参数错误', false);
+                        return;
+                    }
+
+                    this.isLoading = true;
+                    this.operateMsg = '';
+                    try {
+                        const response = await fetch(`${this.apiBaseUrl}/get-kline`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                date: this.targetDate,
+                                n: targetStep
+                            }),
+                            credentials: 'include',
+                            cache: 'no-cache',
+                        });
+
+                        if (!response.ok) {
+                            const errorText = await response.text();
+                            throw new Error(errorText || `请求失败：${response.status}`);
+                        }
+
+                        const result = await response.json();
+                        this.currentKlineData = result.data.kline_data;
+                        this.currentStep = targetStep;
+                        this.targetStep = targetStep; // 同步输入框步数
+                        this.maxStep = result.data.kline_data.length > 288 ? result.data.kline_data.length : 288;
+
+                        // 转换数据格式并渲染图表
+                        const chartData = this.currentKlineData.map(item => ({
+                            time: Math.floor(item[0] / 1000),
+                            open: parseFloat(item[1]),
+                            high: parseFloat(item[2]),
+                            low: parseFloat(item[3]),
+                            close: parseFloat(item[4])
+                        }));
+                        this.candleSeries.setData(chartData);
+                        this.chart.timeScale().fitContent();
+
+                        this.showOperateMsg(`当前步数：${targetStep}`, true);
+                    } catch (error) {
+                        console.error('切换步数失败：', error);
+                        this.showOperateMsg(`切换失败：${error.message}`, false);
+                    } finally {
+                        this.isLoading = false;
+                    }
+                },
+
+                /**
+                 * 显示操作提示信息
+                 */
+                showOperateMsg(msg, isSuccess) {
+                    this.operateMsg = msg;
+                    this.operateSuccess = isSuccess;
+                    // 3秒后自动清除提示
+                    setTimeout(() => {
+                        this.operateMsg = '';
+                    }, 3000);
+                },
+
+                /**
+                 * 格式化时间戳
+                 */
+                formatTimestamp(timestamp) {
+                    if (!timestamp) return '';
+                    // 兼容毫秒/秒级时间戳
+                    const date = new Date(timestamp.toString().length > 10 ? timestamp : timestamp * 1000);
+                    return new Intl.DateTimeFormat('zh-CN', {
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit'
+                    }).format(date);
+                },
+
+                /**
+                 * 处理窗口大小变化
+                 */
+                handleWindowResize() {
+                    if (!this.chart || !this.$refs.chartEl) return;
+                    this.chart.applyOptions({ height: this.$refs.chartEl.clientHeight });
+                    if (this.currentKlineData.length > 0) this.chart.timeScale().fitContent();
+                }
             }
-        }
-    }).mount('#app');
-</script>
+        }).mount('#app');
+    </script>
 </body>
+
 </html>
