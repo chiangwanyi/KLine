@@ -390,43 +390,43 @@
                     });
                 },
                 /**
-                 * 渲染盈亏比工具（重新设计的简化版本）
+                 * 渲染盈亏比工具（优化样式和预览效果）
                  */
                 renderRRTools(svg) {
                     this.rrTools.forEach(rr => {
                         // 增加严格的空值检查
                         if (!rr || !rr.entryTime || !rr.entryPrice || !rr.stopTime || !rr.stopPrice) return;
                         
-                        // 绘制止损矩形（红色）
-                        this.drawRect(svg, {
+                        // 计算价格差值
+                        const priceDiff = Math.abs(rr.entryPrice - rr.stopPrice);
+                        const direction = rr.stopPrice > rr.entryPrice ? -1 : 1; // 1=向上，-1=向下
+
+                        // 绘制止损区域（红色）
+                        this.drawRRRect(svg, {
                             t1: rr.entryTime,
                             p1: rr.entryPrice,
                             t2: rr.stopTime,
                             p2: rr.stopPrice
                         }, '#ef4444', 0.3);
 
-                        // 计算价格差值
-                        const priceDiff = Math.abs(rr.entryPrice - rr.stopPrice);
-                        const direction = rr.stopPrice > rr.entryPrice ? -1 : 1; // 1=向上，-1=向下
-
-                        // 绘制1倍目标矩形（蓝色）
-                        this.drawRect(svg, {
+                        // 绘制1倍目标区域（蓝色）
+                        this.drawRRRect(svg, {
                             t1: rr.entryTime,
                             p1: rr.entryPrice + direction * priceDiff * 1,
                             t2: rr.stopTime,
                             p2: rr.entryPrice
                         }, '#3b82f6', 0.2);
 
-                        // 绘制2倍目标矩形（绿色）
-                        this.drawRect(svg, {
+                        // 绘制2倍目标区域（绿色）
+                        this.drawRRRect(svg, {
                             t1: rr.entryTime,
                             p1: rr.entryPrice + direction * priceDiff * 2,
                             t2: rr.stopTime,
                             p2: rr.entryPrice + direction * priceDiff * 1
                         }, '#22c55e', 0.2);
 
-                        // 绘制3倍目标矩形（黄色）
-                        this.drawRect(svg, {
+                        // 绘制3倍目标区域（黄色）
+                        this.drawRRRect(svg, {
                             t1: rr.entryTime,
                             p1: rr.entryPrice + direction * priceDiff * 3,
                             t2: rr.stopTime,
@@ -449,7 +449,7 @@
                     });
                 },
                 /**
-                 * 渲染临时绘制的元素
+                 * 渲染临时绘制的元素（增强盈亏比预览效果）
                  */
                 renderTempElements(svg) {
                     // 渲染临时趋势线
@@ -484,16 +484,71 @@
                         this.drawRect(svg, this.rectTemp, '#f59e0b', 0.1);
                     }
 
-                    // 渲染临时盈亏比矩形
+                    // 渲染临时盈亏比工具（完整预览效果）
                     if (this.rrTemp && this.activeTool === 'rr') {
                         // 增加空值检查
-                        if (this.rrTemp && this.rrTemp.entryTime && this.rrTemp.entryPrice) {
-                            this.drawRect(svg, this.rrTemp, '#ef4444', 0.2);
+                        if (!this.rrTemp || !this.rrTemp.entryTime || !this.rrTemp.entryPrice) return;
+                        
+                        // 计算当前拖拽的止损价格
+                        const currentStopPrice = this.rrTemp.stopPrice || this.rrTemp.entryPrice;
+                        
+                        // 只在有价格差时才显示目标预览
+                        if (Math.abs(this.rrTemp.entryPrice - currentStopPrice) > 0) {
+                            // 计算价格差值
+                            const priceDiff = Math.abs(this.rrTemp.entryPrice - currentStopPrice);
+                            const direction = currentStopPrice > this.rrTemp.entryPrice ? -1 : 1;
+
+                            // 预览止损区域（红色，透明度降低）
+                            this.drawRRRect(svg, {
+                                t1: this.rrTemp.entryTime,
+                                p1: this.rrTemp.entryPrice,
+                                t2: this.rrTemp.stopTime || this.rrTemp.entryTime,
+                                p2: currentStopPrice
+                            }, '#ef4444', 0.2);
+
+                            // 预览1倍目标区域（蓝色，透明度降低）
+                            this.drawRRRect(svg, {
+                                t1: this.rrTemp.entryTime,
+                                p1: this.rrTemp.entryPrice + direction * priceDiff * 1,
+                                t2: this.rrTemp.stopTime || this.rrTemp.entryTime,
+                                p2: this.rrTemp.entryPrice
+                            }, '#3b82f6', 0.15);
+
+                            // 预览2倍目标区域（绿色，透明度降低）
+                            this.drawRRRect(svg, {
+                                t1: this.rrTemp.entryTime,
+                                p1: this.rrTemp.entryPrice + direction * priceDiff * 2,
+                                t2: this.rrTemp.stopTime || this.rrTemp.entryTime,
+                                p2: this.rrTemp.entryPrice + direction * priceDiff * 1
+                            }, '#22c55e', 0.15);
+
+                            // 预览3倍目标区域（黄色，透明度降低）
+                            this.drawRRRect(svg, {
+                                t1: this.rrTemp.entryTime,
+                                p1: this.rrTemp.entryPrice + direction * priceDiff * 3,
+                                t2: this.rrTemp.stopTime || this.rrTemp.entryTime,
+                                p2: this.rrTemp.entryPrice + direction * priceDiff * 2
+                            }, '#eab308', 0.15);
+                        } else {
+                            // 只显示入场点
+                            const entryX = this.chart.timeScale().timeToCoordinate(this.rrTemp.entryTime);
+                            const entryY = this.candleSeries.priceToCoordinate(this.rrTemp.entryPrice);
+                            if (entryX != null && entryY != null) {
+                                const entryLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                                entryLine.setAttribute('x1', entryX - 10);
+                                entryLine.setAttribute('y1', entryY);
+                                entryLine.setAttribute('x2', entryX + 10);
+                                entryLine.setAttribute('y2', entryY);
+                                entryLine.setAttribute('stroke', '#ffffff');
+                                entryLine.setAttribute('stroke-width', '2');
+                                entryLine.setAttribute('stroke-dasharray', '3,3');
+                                svg.appendChild(entryLine);
+                            }
                         }
                     }
                 },
                 /**
-                 * 绘制矩形（修复核心报错）
+                 * 绘制普通矩形
                  */
                 drawRect(svg, rect, color, opacity) {
                     // 增加严格的空值检查，防止传入无效数据
@@ -539,6 +594,77 @@
                     rectEl.setAttribute('stroke-opacity', '0.8');
 
                     svg.appendChild(rectEl);
+                },
+                /**
+                 * 绘制盈亏比矩形（自定义样式：去掉左右边框，上下边框虚线）
+                 */
+                drawRRRect(svg, rect, color, opacity) {
+                    // 增加严格的空值检查，防止传入无效数据
+                    if (!svg || !rect || rect.t1 == null || rect.t2 == null || rect.p1 == null || rect.p2 == null) {
+                        return;
+                    }
+                    
+                    // 先检查时间值是否有效
+                    let x1, x2, y1, y2;
+                    try {
+                        x1 = this.chart.timeScale().timeToCoordinate(rect.t1);
+                        x2 = this.chart.timeScale().timeToCoordinate(rect.t2);
+                        y1 = this.candleSeries.priceToCoordinate(rect.p1);
+                        y2 = this.candleSeries.priceToCoordinate(rect.p2);
+                    } catch (e) {
+                        // 捕获timeToCoordinate的异常，防止控制台报错
+                        console.debug('绘制盈亏比矩形时坐标转换失败:', e);
+                        return;
+                    }
+
+                    // 检查转换后的坐标是否有效
+                    if (x1 == null || x2 == null || y1 == null || y2 == null) return;
+
+                    // 计算矩形的实际坐标
+                    const rx = Math.min(x1, x2);
+                    const ry = Math.min(y1, y2);
+                    const width = Math.abs(x2 - x1);
+                    const height = Math.abs(y2 - y1);
+
+                    // 只绘制有实际大小的矩形
+                    if (width <= 0 || height <= 0) return;
+
+                    // 1. 创建填充矩形（无描边）
+                    const fillRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                    fillRect.setAttribute('x', rx);
+                    fillRect.setAttribute('y', ry);
+                    fillRect.setAttribute('width', width);
+                    fillRect.setAttribute('height', height);
+                    fillRect.setAttribute('fill', color);
+                    fillRect.setAttribute('fill-opacity', opacity);
+                    fillRect.setAttribute('stroke', 'none'); // 去掉所有边框
+                    svg.appendChild(fillRect);
+
+                    // 2. 绘制上边框（虚线）
+                    const topLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                    topLine.setAttribute('x1', rx);
+                    topLine.setAttribute('y1', ry);
+                    topLine.setAttribute('x2', rx + width);
+                    topLine.setAttribute('y2', ry);
+                    topLine.setAttribute('stroke', color);
+                    topLine.setAttribute('stroke-width', '1');
+                    topLine.setAttribute('stroke-opacity', '0.8');
+                    topLine.setAttribute('stroke-dasharray', '4,2'); // 虚线样式
+                    svg.appendChild(topLine);
+
+                    // 3. 绘制下边框（虚线）
+                    const bottomLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                    bottomLine.setAttribute('x1', rx);
+                    bottomLine.setAttribute('y1', ry + height);
+                    bottomLine.setAttribute('x2', rx + width);
+                    bottomLine.setAttribute('y2', ry + height);
+                    bottomLine.setAttribute('stroke', color);
+                    bottomLine.setAttribute('stroke-width', '1');
+                    bottomLine.setAttribute('stroke-opacity', '0.8');
+                    bottomLine.setAttribute('stroke-dasharray', '4,2'); // 虚线样式
+                    svg.appendChild(bottomLine);
+                    
+                    // 注意：不绘制左右边框，实现去掉左右边框的效果
                 },
                 /**
                  * Overlay指针按下事件
@@ -645,7 +771,7 @@
                     this.rectTemp = { t1: t, p1: p, t2: t, p2: p };
                 },
                 /**
-                 * 处理盈亏比按下事件（重新设计的简化版本）
+                 * 处理盈亏比按下事件
                  */
                 handleRRDown(e) {
                     const t = this.chart.timeScale().coordinateToTime(e.offsetX);
