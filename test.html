@@ -1,6 +1,5 @@
 <!DOCTYPE html>
 <html lang="zh">
-
 <head>
     <meta charset="UTF-8" />
     <title>Vue3 + SVG K线绘图 Demo</title>
@@ -37,6 +36,7 @@
             border: 1px solid #333;
             color: #ccc;
             cursor: pointer;
+            transition: all 0.2s;
         }
 
         .sidebar button.active {
@@ -57,233 +57,370 @@
         }
     </style>
 </head>
-
 <body>
     <div id="app">
         <!-- 左侧工具栏 -->
         <div class="sidebar">
-            <button v-for="t in tools" :key="t.key" :class="{ active: tool === t.key }" @click="tool = t.key">
-                {{ t.label }}
+            <button 
+                v-for="tool in toolOptions" 
+                :key="tool.key" 
+                :class="{ active: activeTool === tool.key }" 
+                @click="switchTool(tool.key)"
+            >
+                {{ tool.label }}
             </button>
         </div>
 
         <!-- 右侧图表 -->
         <div class="chart-container">
-            <svg ref="svg" @pointerdown="onPointerDown" @pointermove="onPointerMove" @pointerup="onPointerUp"
-                @pointerleave="onPointerUp">
+            <svg 
+                ref="svgRef" 
+                @pointerdown="handlePointerDown" 
+                @pointermove="handlePointerMove" 
+                @pointerup="handlePointerUp"
+                @pointerleave="handlePointerUp"
+            >
                 <!-- K线层 -->
                 <g>
-                    <template v-for="(b, i) in bars" :key="i">
+                    <template v-for="(bar, index) in kLineData" :key="index">
                         <!-- 影线 -->
-                        <line :x1="xOf(i)" :x2="xOf(i)" :y1="yOf(b.high)" :y2="yOf(b.low)"
-                            :stroke="b.close >= b.open ? upColor : downColor" />
+                        <line 
+                            :x1="getXCoordinate(index)" 
+                            :x2="getXCoordinate(index)" 
+                            :y1="getYCoordinate(bar.high)" 
+                            :y2="getYCoordinate(bar.low)"
+                            :stroke="bar.close >= bar.open ? colorConfig.up : colorConfig.down" 
+                        />
                         <!-- 实体 -->
-                        <rect :x="xOf(i) - candleWidth / 2" :y="Math.min(yOf(b.open), yOf(b.close))"
-                            :width="candleWidth" :height="Math.max(1, Math.abs(yOf(b.close) - yOf(b.open)))"
-                            :fill="b.close >= b.open ? upColor : downColor" />
+                        <rect 
+                            :x="getXCoordinate(index) - chartConfig.candleWidth / 2" 
+                            :y="Math.min(getYCoordinate(bar.open), getYCoordinate(bar.close))"
+                            :width="chartConfig.candleWidth" 
+                            :height="Math.max(1, Math.abs(getYCoordinate(bar.close) - getYCoordinate(bar.open)))"
+                            :fill="bar.close >= bar.open ? colorConfig.up : colorConfig.down" 
+                        />
                     </template>
                 </g>
 
                 <!-- 绘图层 -->
                 <g>
                     <!-- 趋势线 -->
-                    <g v-for="(l, idx) in trendLines" :key="idx">
-                        <line :x1="l.p1.x" :y1="l.p1.y" :x2="l.p2.x" :y2="l.p2.y" stroke="#2962ff" stroke-width="2" />
-                        <circle v-for="(p, i) in [l.p1, l.p2]" :key="i" :cx="p.x" :cy="p.y" r="5" fill="#fff"
-                            stroke="#2962ff" @pointerdown.stop="startDrag(l, i, $event)" />
+                    <g v-for="(line, idx) in drawingData.trendLines" :key="idx">
+                        <line 
+                            :x1="line.p1.x" 
+                            :y1="line.p1.y" 
+                            :x2="line.p2.x" 
+                            :y2="line.p2.y" 
+                            stroke="#2962ff" 
+                            stroke-width="2" 
+                        />
+                        <circle 
+                            v-for="(point, i) in [line.p1, line.p2]" 
+                            :key="i" 
+                            :cx="point.x" 
+                            :cy="point.y" 
+                            r="5" 
+                            fill="#fff"
+                            stroke="#2962ff" 
+                            @pointerdown.stop="startDragTrendLine(line, i, $event)"
+                        />
                     </g>
 
-                    <!-- 矩形 -->
-                    <rect v-for="(r, idx) in rects" :key="idx" :x="r.x" :y="r.y" :width="r.w" :height="r.h"
-                        fill="rgba(41,98,255,0.15)" stroke="#2962ff" />
+                    <!-- 已绘制矩形 -->
+                    <rect 
+                        v-for="(rect, idx) in drawingData.rects" 
+                        :key="idx" 
+                        :x="rect.x" 
+                        :y="rect.y" 
+                        :width="rect.w" 
+                        :height="rect.h"
+                        fill="rgba(41,98,255,0.15)" 
+                        stroke="#2962ff" 
+                    />
 
-                    <!-- 临时矩形 -->
-                    <rect v-if="tempRect" :x="tempRect.x" :y="tempRect.y" :width="tempRect.w" :height="tempRect.h"
-                        fill="rgba(41,98,255,0.15)" stroke="#2962ff" />
+                    <!-- 临时绘制矩形 -->
+                    <rect 
+                        v-if="drawingData.tempRect" 
+                        :x="drawingData.tempRect.x" 
+                        :y="drawingData.tempRect.y" 
+                        :width="drawingData.tempRect.w" 
+                        :height="drawingData.tempRect.h"
+                        fill="rgba(41,98,255,0.15)" 
+                        stroke="#2962ff" 
+                    />
                 </g>
             </svg>
         </div>
     </div>
 
     <script>
-        const { createApp, ref, onMounted, watch } = Vue
+        const { createApp, ref, onMounted, onUnmounted } = Vue
 
         createApp({
             setup() {
-                /* ===== 工具定义 ===== */
-                const tools = [
+                /**************************
+                 * 1. 常量配置（集中管理）
+                 *************************/
+                // 图表基础配置
+                const chartConfig = {
+                    padding: { left: 20, right: 20, top: 20, bottom: 20 },
+                    candleWidth: 6,
+                    barCount: 288 // K线数量
+                }
+
+                // 颜色配置
+                const colorConfig = {
+                    up: '#4CAF50',   // 涨-绿色
+                    down: '#F44336', // 跌-红色
+                    drawing: '#2962ff' // 绘图-蓝色
+                }
+
+                // 工具选项
+                const toolOptions = [
                     { key: 'view', label: '查看' },
                     { key: 'trend', label: '趋势线' },
                     { key: 'rect', label: '矩形' },
                 ]
-                const tool = ref('view')
 
-                /* ===== K线数据生成 ===== */
-                const bars = ref([])
-                let price = 100
-                for (let i = 0; i < 288; i++) {
-                    const o = price
-                    const h = o + Math.random() * 2
-                    const l = o - Math.random() * 2
-                    const c = l + Math.random() * (h - l)
-                    price = c
-                    bars.value.push({ open: o, high: h, low: l, close: c })
+                /**************************
+                 * 2. 响应式数据（分类管理）
+                 *************************/
+                // 工具状态
+                const activeTool = ref('view')
+
+                // SVG元素和尺寸
+                const svgRef = ref(null)
+                const svgSize = ref({ width: 0, height: 0 })
+
+                // K线数据相关
+                const kLineData = ref([])
+                const priceRange = ref({ min: 0, max: 0 })
+
+                // 绘图相关数据
+                const drawingData = ref({
+                    trendLines: [],    // 已完成的趋势线
+                    tempTrendLine: null, // 临时趋势线（绘制中）
+                    rects: [],         // 已完成的矩形
+                    tempRect: null,    // 临时矩形（绘制中）
+                    rectStartPoint: null, // 矩形起始点
+                    dragging: null     // 拖拽状态 { line, index }
+                })
+
+                /**************************
+                 * 3. 工具函数（通用能力）
+                 *************************/
+                // 生成随机K线数据
+                const generateKLineData = () => {
+                    let price = 100
+                    const data = []
+                    for (let i = 0; i < chartConfig.barCount; i++) {
+                        const open = price
+                        const high = open + Math.random() * 2
+                        const low = open - Math.random() * 2
+                        const close = low + Math.random() * (high - low)
+                        price = close
+                        data.push({ open, high, low, close })
+                    }
+                    return data
                 }
 
-                /* ===== SVG 相关 ===== */
-                const svg = ref(null)
-                const svgWidth = ref(0)
-                const svgHeight = ref(0)
-
-                // 图表内边距
-                const padding = {
-                    left: 20,
-                    right: 20,
-                    top: 20,
-                    bottom: 20
+                // 更新SVG尺寸
+                const updateSvgSize = () => {
+                    if (svgRef.value) {
+                        svgSize.value.width = svgRef.value.clientWidth
+                        svgSize.value.height = svgRef.value.clientHeight
+                    }
                 }
 
-                // K线颜色定义
-                const upColor = '#4CAF50'  // 涨（绿色）
-                const downColor = '#F44336' // 跌（红色）
+                // 计算价格极值
+                const calculatePriceRange = (data) => {
+                    return {
+                        min: Math.min(...data.map(bar => bar.low)),
+                        max: Math.max(...data.map(bar => bar.high))
+                    }
+                }
 
-                // 计算价格极值（用于Y轴映射）
-                const priceMax = ref(Math.max(...bars.value.map(b => b.high)))
-                const priceMin = ref(Math.min(...bars.value.map(b => b.low)))
+                /**************************
+                 * 4. 坐标计算（核心逻辑）
+                 *************************/
+                // 获取K线X坐标
+                const getXCoordinate = (index) => {
+                    if (!svgSize.value.width) return 0
+                    const step = (svgSize.value.width - chartConfig.padding.left - chartConfig.padding.right) / kLineData.value.length
+                    return chartConfig.padding.left + index * step + step / 2
+                }
 
-                // 监听窗口大小变化，更新SVG尺寸
+                // 获取价格Y坐标（SVG坐标系：Y轴向下为正）
+                const getYCoordinate = (price) => {
+                    if (!svgSize.value.height || priceRange.value.max === priceRange.value.min) return 0
+                    return chartConfig.padding.top +
+                        (priceRange.value.max - price) / (priceRange.value.max - priceRange.value.min) *
+                        (svgSize.value.height - chartConfig.padding.top - chartConfig.padding.bottom)
+                }
+
+                /**************************
+                 * 5. 工具切换（交互逻辑）
+                 *************************/
+                const switchTool = (toolKey) => {
+                    activeTool.value = toolKey
+                    // 切换工具时清空临时绘制状态
+                    drawingData.value.tempTrendLine = null
+                    drawingData.value.tempRect = null
+                    drawingData.value.rectStartPoint = null
+                }
+
+                /**************************
+                 * 6. 趋势线相关（绘图逻辑）
+                 *************************/
+                // 开始拖拽趋势线端点
+                const startDragTrendLine = (line, pointIndex, e) => {
+                    drawingData.value.dragging = { line, pointIndex }
+                    svgRef.value.setPointerCapture(e.pointerId)
+                }
+
+                // 绘制趋势线（点击两个点完成）
+                const drawTrendLine = (event) => {
+                    const { tempTrendLine, trendLines } = drawingData.value
+                    const point = { x: event.offsetX, y: event.offsetY }
+
+                    if (!tempTrendLine) {
+                        // 第一个点：创建临时趋势线
+                        drawingData.value.tempTrendLine = { p1: point }
+                    } else {
+                        // 第二个点：完成趋势线绘制
+                        tempTrendLine.p2 = point
+                        trendLines.push({ ...tempTrendLine }) // 深拷贝避免引用问题
+                        drawingData.value.tempTrendLine = null // 清空临时状态
+                    }
+                }
+
+                /**************************
+                 * 7. 矩形相关（绘图逻辑）
+                 *************************/
+                // 开始绘制矩形
+                const startDrawRect = (event) => {
+                    const startPoint = { x: event.offsetX, y: event.offsetY }
+                    drawingData.value.rectStartPoint = startPoint
+                    drawingData.value.tempRect = {
+                        x: startPoint.x,
+                        y: startPoint.y,
+                        w: 0,
+                        h: 0
+                    }
+                }
+
+                // 更新临时矩形尺寸
+                const updateTempRect = (event) => {
+                    const { rectStartPoint, tempRect } = drawingData.value
+                    if (!rectStartPoint || !tempRect) return
+
+                    const x = Math.min(rectStartPoint.x, event.offsetX)
+                    const y = Math.min(rectStartPoint.y, event.offsetY)
+                    const w = Math.abs(event.offsetX - rectStartPoint.x)
+                    const h = Math.abs(event.offsetY - rectStartPoint.y)
+
+                    drawingData.value.tempRect = { x, y, w, h }
+                }
+
+                // 完成矩形绘制
+                const finishDrawRect = () => {
+                    const { tempRect, rects } = drawingData.value
+                    if (tempRect && tempRect.w > 0 && tempRect.h > 0) {
+                        rects.push({ ...tempRect }) // 深拷贝
+                    }
+                    // 清空临时状态
+                    drawingData.value.tempRect = null
+                    drawingData.value.rectStartPoint = null
+                }
+
+                /**************************
+                 * 8. 指针事件处理（统一入口）
+                 *************************/
+                // 指针按下
+                const handlePointerDown = (event) => {
+                    if (activeTool.value === 'view') return // 查看模式不处理绘图
+
+                    switch (activeTool.value) {
+                        case 'trend':
+                            drawTrendLine(event)
+                            break
+                        case 'rect':
+                            startDrawRect(event)
+                            break
+                    }
+                }
+
+                // 指针移动
+                const handlePointerMove = (event) => {
+                    // 处理趋势线拖拽
+                    if (drawingData.value.dragging) {
+                        const { line, pointIndex } = drawingData.value.dragging
+                        const pointKey = pointIndex === 0 ? 'p1' : 'p2'
+                        line[pointKey].x = event.offsetX
+                        line[pointKey].y = event.offsetY
+                    }
+
+                    // 处理矩形绘制中更新
+                    if (activeTool.value === 'rect' && drawingData.value.tempRect) {
+                        updateTempRect(event)
+                    }
+                }
+
+                // 指针抬起/离开
+                const handlePointerUp = () => {
+                    // 清空拖拽状态
+                    drawingData.value.dragging = null
+
+                    // 完成矩形绘制
+                    if (activeTool.value === 'rect') {
+                        finishDrawRect()
+                    }
+                }
+
+                /**************************
+                 * 9. 生命周期（初始化/销毁）
+                 *************************/
                 onMounted(() => {
+                    // 初始化K线数据
+                    kLineData.value = generateKLineData()
+                    priceRange.value = calculatePriceRange(kLineData.value)
+
                     // 初始化SVG尺寸
                     updateSvgSize()
-                    // 监听窗口resize
+
+                    // 监听窗口大小变化
                     window.addEventListener('resize', updateSvgSize)
                 })
 
-                // 更新SVG尺寸的方法
-                function updateSvgSize() {
-                    if (svg.value) {
-                        svgWidth.value = svg.value.clientWidth
-                        svgHeight.value = svg.value.clientHeight
-                    }
-                }
+                onUnmounted(() => {
+                    // 移除事件监听，避免内存泄漏
+                    window.removeEventListener('resize', updateSvgSize)
+                })
 
-                // X轴坐标计算（根据K线索引）
-                function xOf(i) {
-                    if (!svgWidth.value) return 0
-                    const step = (svgWidth.value - padding.left - padding.right) / bars.value.length
-                    return padding.left + i * step + step / 2
-                }
-
-                // Y轴坐标计算（根据价格）
-                function yOf(p) {
-                    if (!svgHeight.value || priceMax.value === priceMin.value) return 0
-                    return padding.top +
-                        (priceMax.value - p) / (priceMax.value - priceMin.value) *
-                        (svgHeight.value - padding.top - padding.bottom)
-                }
-
-                // K线实体宽度
-                const candleWidth = 6
-
-                /* ===== 趋势线功能 ===== */
-                const trendLines = ref([])
-                let tempTrend = null
-
-                /* ===== 矩形绘制功能 ===== */
-                const rects = ref([])
-                const tempRect = ref(null)
-                let rectStart = null
-
-                /* ===== 拖拽功能 ===== */
-                let dragging = null
-
-                // 开始拖拽趋势线端点
-                function startDrag(line, idx, e) {
-                    dragging = { line, idx }
-                    svg.value.setPointerCapture(e.pointerId)
-                }
-
-                // 鼠标按下事件
-                function onPointerDown(e) {
-                    // 查看模式不处理绘图
-                    if (tool.value === 'view') return
-
-                    // 绘制趋势线
-                    if (tool.value === 'trend') {
-                        if (!tempTrend) {
-                            tempTrend = { p1: { x: e.offsetX, y: e.offsetY } }
-                        } else {
-                            tempTrend.p2 = { x: e.offsetX, y: e.offsetY }
-                            trendLines.value.push({ ...tempTrend }) // 深拷贝避免引用问题
-                            tempTrend = null
-                        }
-                    }
-
-                    // 绘制矩形
-                    if (tool.value === 'rect') {
-                        rectStart = { x: e.offsetX, y: e.offsetY }
-                        tempRect.value = { x: rectStart.x, y: rectStart.y, w: 0, h: 0 }
-                    }
-                }
-
-                // 鼠标移动事件
-                function onPointerMove(e) {
-                    // 拖拽趋势线端点
-                    if (dragging) {
-                        const pointKey = dragging.idx === 0 ? 'p1' : 'p2'
-                        dragging.line[pointKey].x = e.offsetX
-                        dragging.line[pointKey].y = e.offsetY
-                    }
-
-                    // 绘制临时矩形
-                    if (tempRect.value && rectStart) {
-                        const x = Math.min(rectStart.x, e.offsetX)
-                        const y = Math.min(rectStart.y, e.offsetY)
-                        tempRect.value = {
-                            x,
-                            y,
-                            w: Math.abs(e.offsetX - rectStart.x),
-                            h: Math.abs(e.offsetY - rectStart.y)
-                        }
-                    }
-                }
-
-                // 鼠标抬起/离开事件
-                function onPointerUp() {
-                    dragging = null
-                    // 完成矩形绘制
-                    if (tempRect.value && tempRect.value.w > 0 && tempRect.value.h > 0) {
-                        rects.value.push({ ...tempRect.value }) // 深拷贝
-                        tempRect.value = null
-                        rectStart = null
-                    } else if (tempRect.value) {
-                        // 清除无效矩形
-                        tempRect.value = null
-                        rectStart = null
-                    }
-                }
-
+                /**************************
+                 * 10. 暴露给模板的变量/方法
+                 *************************/
                 return {
-                    tools,
-                    tool,
-                    bars,
-                    svg,
-                    xOf,
-                    yOf,
-                    candleWidth,
-                    upColor,
-                    downColor,
-                    trendLines,
-                    rects,
-                    tempRect,
-                    startDrag,
-                    onPointerDown,
-                    onPointerMove,
-                    onPointerUp
+                    // 配置项
+                    chartConfig,
+                    colorConfig,
+                    toolOptions,
+                    // 响应式数据
+                    activeTool,
+                    svgRef,
+                    kLineData,
+                    drawingData,
+                    // 方法
+                    switchTool,
+                    getXCoordinate,
+                    getYCoordinate,
+                    startDragTrendLine,
+                    handlePointerDown,
+                    handlePointerMove,
+                    handlePointerUp
                 }
             }
         }).mount('#app')
     </script>
 </body>
-
 </html>
