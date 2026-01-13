@@ -5,7 +5,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BTCUSDT 5M K线管理</title>
-    <!-- 沿用可运行代码的CDN源和版本 -->
     <script src="https://unpkg.com/vue@3"></script>
     <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
@@ -62,6 +61,22 @@
         <!-- 左侧功能区 -->
         <div class="left w-[320px] bg-secondary p-2 overflow-y-auto border-r border-border">
             <h1 class="text-textHighlight text-lg mb-4 text-center">BTCUSDT 5M K线管理</h1>
+            <div class="card">
+                <h3 class="text-textHighlight text-sm mb-2 pb-2 border-b border-border">绘图工具</h3>
+                <div class="grid grid-cols-2 gap-2">
+                    <button class="btn-secondary" :class="{ 'bg-[#475569]': activeTool === 'cursor' }"
+                        @click="setTool('cursor')">查看K线</button>
+
+                    <button class="btn-secondary" :class="{ 'bg-[#475569]': activeTool === 'trendline' }"
+                        @click="setTool('trendline')">趋势线</button>
+
+                    <button class="btn-secondary" :class="{ 'bg-[#475569]': activeTool === 'rect' }"
+                        @click="setTool('rect')">矩形</button>
+
+                    <button class="btn-secondary" :class="{ 'bg-[#475569]': activeTool === 'rr' }"
+                        @click="setTool('rr')">多空盈亏比</button>
+                </div>
+            </div>
 
             <!-- 合并后的K线加载与回放控制区 -->
             <div class="card">
@@ -146,11 +161,12 @@
             </div>
         </div>
 
-        <!-- 右侧图表区（沿用可运行代码的ref写法） -->
+        <!-- 右侧图表区 -->
         <div class="right flex-1 h-screen relative" ref="chartWrapper">
             <div ref="chartEl" class="absolute inset-0"></div>
             <!-- SVG Overlay -->
-            <svg ref="overlayEl" class="absolute inset-0 pointer-events-auto" style="z-index: 20"
+            <svg ref="overlayEl" class="absolute inset-0"
+                :style="{ zIndex: 20, pointerEvents: activeTool === 'cursor' ? 'none' : 'auto' }"
                 @pointerdown="onOverlayPointerDown" @pointermove="onOverlayPointerMove"
                 @pointerup="onOverlayPointerUp"></svg>
             <div class="kline-tooltip absolute z-10 bg-secondary border border-border rounded px-3 py-2 text-xs text-text pointer-events-none transition-opacity min-w-[180px]"
@@ -190,13 +206,13 @@
         createApp({
             data() {
                 return {
-                    // 图表核心实例（沿用可运行代码的写法）
+                    // 图表核心实例
                     chart: null,
                     candleSeries: null,
 
                     // 业务数据
                     targetDate: '',        // 统一的目标日期
-                    targetStep: 108,         // 手动输入的目标步数
+                    targetStep: 108,       // 手动输入的目标步数
                     currentStep: 0,        // 当前回放步数
                     maxStep: 288,          // 最大步数
                     isLoading: false,      // 加载状态
@@ -209,20 +225,21 @@
                         left: 0,
                         opacity: 0
                     },
-                    // === Overlay / Trend Line ===
+                    // 绘图相关
                     overlayDragging: false,
                     overlayTempPoint: null,
-
-                    trendLines: [
-                        // 示例：默认画一根
-                        // { t1, p1, t2, p2 }
-                    ],
+                    trendLines: [],        // 趋势线数据
+                    activeTool: 'cursor',  // cursor | trendline | rect | rr
+                    rects: [],             // 矩形数据
+                    rectTemp: null,        // 临时矩形数据
+                    rrTools: [],           // 盈亏比工具数据
+                    rrTemp: null,          // 临时盈亏比数据
                     // API基础地址
                     apiBaseUrl: 'http://localhost:8880'
                 };
             },
             mounted() {
-                // 初始化图表（完全沿用可运行代码的初始化逻辑）
+                // 初始化图表
                 this.initChart();
                 // 默认填充当天日期
                 const today = new Date();
@@ -232,14 +249,32 @@
                 this.initCrosshairListener();
                 // 窗口大小监听
                 window.addEventListener('resize', this.handleWindowResize);
+                // 初始化Overlay
                 this.initOverlay();
             },
             unmounted() {
                 window.removeEventListener('resize', this.handleWindowResize);
+                // 移除overlay的resize监听
+                window.removeEventListener('resize', this.resizeOverlay);
+                // 移除图表监听
+                if (this.chart) {
+                    this.chart.timeScale().unsubscribeVisibleTimeRangeChange(this.renderOverlay);
+                    this.chart.unsubscribeCrosshairMove(this.renderOverlay);
+                }
             },
             methods: {
                 /**
-                 * 初始化图表（完全复用可运行代码的标准写法）
+                 * 设置当前激活的绘图工具
+                 */
+                setTool(tool) {
+                    this.activeTool = tool;
+                    // 清除临时绘制状态
+                    this.overlayTempPoint = null;
+                    this.rectTemp = null;
+                    this.rrTemp = null;
+                },
+                /**
+                 * 初始化图表
                  */
                 initChart() {
                     if (!this.$refs.chartEl) return;
@@ -263,7 +298,7 @@
                         height: this.$refs.chartEl.clientHeight
                     });
 
-                    // 创建K线系列（关键：使用LightweightCharts.CandlestickSeries）
+                    // 创建K线系列
                     this.candleSeries = this.chart.addSeries(LightweightCharts.CandlestickSeries, {
                         upColor: '#22c55e',
                         downColor: '#ef4444',
@@ -273,15 +308,22 @@
                         wickDownColor: '#ef4444'
                     });
                 },
+                /**
+                 * 初始化Overlay
+                 */
                 initOverlay() {
                     this.resizeOverlay();
-
+                    // 确保只绑定一次resize事件
+                    window.removeEventListener('resize', this.resizeOverlay);
                     window.addEventListener('resize', this.resizeOverlay);
 
                     // 图表变化时重绘
                     this.chart.timeScale().subscribeVisibleTimeRangeChange(this.renderOverlay);
                     this.chart.subscribeCrosshairMove(this.renderOverlay);
                 },
+                /**
+                 * 调整Overlay大小
+                 */
                 resizeOverlay() {
                     const el = this.$refs.overlayEl;
                     const wrapper = this.$refs.chartWrapper;
@@ -292,12 +334,29 @@
 
                     this.renderOverlay();
                 },
+                /**
+                 * 渲染所有绘图元素
+                 */
                 renderOverlay() {
                     const svg = this.$refs.overlayEl;
                     if (!svg || !this.chart || !this.candleSeries) return;
 
+                    // 清空现有内容
                     svg.innerHTML = '';
 
+                    // 渲染趋势线
+                    this.renderTrendLines(svg);
+                    // 渲染矩形
+                    this.renderRects(svg);
+                    // 渲染盈亏比工具
+                    this.renderRRTools(svg);
+                    // 渲染临时绘制的元素
+                    this.renderTempElements(svg);
+                },
+                /**
+                 * 渲染趋势线
+                 */
+                renderTrendLines(svg) {
                     this.trendLines.forEach(line => {
                         const x1 = this.chart.timeScale().timeToCoordinate(line.t1);
                         const x2 = this.chart.timeScale().timeToCoordinate(line.t2);
@@ -317,14 +376,222 @@
                         svg.appendChild(el);
                     });
                 },
+                /**
+                 * 渲染矩形
+                 */
+                renderRects(svg) {
+                    this.rects.forEach(rect => {
+                        this.drawRect(svg, rect, '#f59e0b', 0.2);
+                    });
+                },
+                /**
+                 * 渲染盈亏比工具
+                 */
+                renderRRTools(svg) {
+                    this.rrTools.forEach(rr => {
+                        if (!rr.entry || !rr.stop || !rr.target) return;
+
+                        // 计算坐标
+                        const entryX = this.chart.timeScale().timeToCoordinate(rr.t);
+                        const entryY = this.candleSeries.priceToCoordinate(rr.entry);
+                        const stopY = this.candleSeries.priceToCoordinate(rr.stop);
+                        const targetY = this.candleSeries.priceToCoordinate(rr.target);
+
+                        if (entryX == null || entryY == null || stopY == null || targetY == null) return;
+
+                        // 绘制入场线
+                        const entryLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                        entryLine.setAttribute('x1', entryX - 10);
+                        entryLine.setAttribute('y1', entryY);
+                        entryLine.setAttribute('x2', entryX + 10);
+                        entryLine.setAttribute('y2', entryY);
+                        entryLine.setAttribute('stroke', '#10b981');
+                        entryLine.setAttribute('stroke-width', '2');
+                        svg.appendChild(entryLine);
+
+                        // 绘制止损线
+                        const stopLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                        stopLine.setAttribute('x1', entryX - 10);
+                        stopLine.setAttribute('y1', stopY);
+                        stopLine.setAttribute('x2', entryX + 10);
+                        stopLine.setAttribute('y2', stopY);
+                        stopLine.setAttribute('stroke', '#ef4444');
+                        stopLine.setAttribute('stroke-width', '2');
+                        svg.appendChild(stopLine);
+
+                        // 绘制止盈线
+                        const targetLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                        targetLine.setAttribute('x1', entryX - 10);
+                        targetLine.setAttribute('y1', targetY);
+                        targetLine.setAttribute('x2', entryX + 10);
+                        targetLine.setAttribute('y2', targetY);
+                        targetLine.setAttribute('stroke', '#3b82f6');
+                        stopLine.setAttribute('stroke-width', '2');
+                        svg.appendChild(targetLine);
+
+                        // 绘制连线
+                        const line1 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                        line1.setAttribute('x1', entryX);
+                        line1.setAttribute('y1', entryY);
+                        line1.setAttribute('x2', entryX);
+                        line1.setAttribute('y2', stopY);
+                        line1.setAttribute('stroke', '#ef4444');
+                        line1.setAttribute('stroke-width', '1');
+                        line1.setAttribute('stroke-dasharray', '5,5');
+                        svg.appendChild(line1);
+
+                        const line2 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                        line2.setAttribute('x1', entryX);
+                        line2.setAttribute('y1', entryY);
+                        line2.setAttribute('x2', entryX);
+                        line2.setAttribute('y2', targetY);
+                        line2.setAttribute('stroke', '#3b82f6');
+                        line2.setAttribute('stroke-width', '1');
+                        line2.setAttribute('stroke-dasharray', '5,5');
+                        svg.appendChild(line2);
+                    });
+                },
+                /**
+                 * 渲染临时绘制的元素
+                 */
+                renderTempElements(svg) {
+                    // 渲染临时趋势线
+                    if (this.overlayTempPoint && this.activeTool === 'trendline') {
+                        const currentPoint = this.getMousePoint();
+                        if (currentPoint) {
+                            const x1 = this.chart.timeScale().timeToCoordinate(this.overlayTempPoint.t);
+                            const y1 = this.candleSeries.priceToCoordinate(this.overlayTempPoint.p);
+                            const x2 = currentPoint.x;
+                            const y2 = currentPoint.y;
+
+                            if (x1 != null && y1 != null && x2 != null && y2 != null) {
+                                const el = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                                el.setAttribute('x1', x1);
+                                el.setAttribute('y1', y1);
+                                el.setAttribute('x2', x2);
+                                el.setAttribute('y2', y2);
+                                el.setAttribute('stroke', '#2962ff');
+                                el.setAttribute('stroke-width', '2');
+                                el.setAttribute('stroke-dasharray', '5,5');
+                                svg.appendChild(el);
+                            }
+                        }
+                    }
+
+                    // 渲染临时矩形
+                    if (this.rectTemp && this.activeTool === 'rect') {
+                        this.drawRect(svg, this.rectTemp, '#f59e0b', 0.1);
+                    }
+                },
+                /**
+                 * 绘制矩形
+                 */
+                drawRect(svg, rect, color, opacity) {
+                    const x1 = this.chart.timeScale().timeToCoordinate(rect.t1);
+                    const x2 = this.chart.timeScale().timeToCoordinate(rect.t2);
+                    const y1 = this.candleSeries.priceToCoordinate(rect.p1);
+                    const y2 = this.candleSeries.priceToCoordinate(rect.p2);
+
+                    if (x1 == null || x2 == null || y1 == null || y2 == null) return;
+
+                    // 计算矩形的实际坐标（确保x1 <= x2，y1 <= y2）
+                    const rx = Math.min(x1, x2);
+                    const ry = Math.min(y1, y2);
+                    const width = Math.abs(x2 - x1);
+                    const height = Math.abs(y2 - y1);
+
+                    // 创建矩形元素
+                    const rectEl = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                    rectEl.setAttribute('x', rx);
+                    rectEl.setAttribute('y', ry);
+                    rectEl.setAttribute('width', width);
+                    rectEl.setAttribute('height', height);
+                    rectEl.setAttribute('fill', color);
+                    rectEl.setAttribute('fill-opacity', opacity);
+                    rectEl.setAttribute('stroke', color);
+                    rectEl.setAttribute('stroke-width', '1');
+                    rectEl.setAttribute('stroke-opacity', '0.8');
+
+                    svg.appendChild(rectEl);
+                },
+                /**
+                 * 获取鼠标当前位置对应的坐标
+                 */
+                getMousePoint() {
+                    // 这个方法需要结合实际的鼠标位置，这里简化处理
+                    return null;
+                },
+                /**
+                 * Overlay指针按下事件
+                 */
                 onOverlayPointerDown(e) {
+                    if (this.activeTool === 'trendline') {
+                        this.handleTrendlineDown(e);
+                    } else if (this.activeTool === 'rect') {
+                        this.handleRectDown(e);
+                    } else if (this.activeTool === 'rr') {
+                        this.handleRRDown(e);
+                    }
+                },
+                /**
+                 * Overlay指针移动事件
+                 */
+                onOverlayPointerMove(e) {
+                    // 记录当前鼠标位置
+                    this.currentMouseX = e.offsetX;
+                    this.currentMouseY = e.offsetY;
+
+                    if (this.activeTool === 'trendline' && this.overlayTempPoint) {
+                        const time = this.chart.timeScale().coordinateToTime(e.offsetX);
+                        const price = this.candleSeries.coordinateToPrice(e.offsetY);
+                        if (!time || price == null) return;
+                        this.renderOverlay();
+                    } else if (this.activeTool === 'rect' && this.rectTemp) {
+                        const t = this.chart.timeScale().coordinateToTime(e.offsetX);
+                        const p = this.candleSeries.coordinateToPrice(e.offsetY);
+                        if (!t || p == null) return;
+                        this.rectTemp.t2 = t;
+                        this.rectTemp.p2 = p;
+                        this.renderOverlay();
+                    } else if (this.activeTool === 'rr' && this.rrTemp) {
+                        const price = this.candleSeries.coordinateToPrice(e.offsetY);
+                        if (price == null) return;
+                        this.renderOverlay();
+                    }
+                },
+                /**
+                 * Overlay指针抬起事件
+                 */
+                onOverlayPointerUp(e) {
+                    if (this.activeTool === 'rect' && this.rectTemp) {
+                        // 确保矩形有实际大小
+                        if (this.rectTemp.t1 !== this.rectTemp.t2 && this.rectTemp.p1 !== this.rectTemp.p2) {
+                            this.rects.push({ ...this.rectTemp });
+                        }
+                        this.rectTemp = null;
+                        this.renderOverlay();
+                    } else if (this.activeTool === 'rr' && this.rrTemp) {
+                        // 如果已经设置了止盈，则完成绘制
+                        if (this.rrTemp.target) {
+                            this.rrTools.push({ ...this.rrTemp });
+                            this.rrTemp = null;
+                            this.renderOverlay();
+                        }
+                    }
+                },
+                /**
+                 * 处理趋势线按下事件
+                 */
+                handleTrendlineDown(e) {
                     const time = this.chart.timeScale().coordinateToTime(e.offsetX);
                     const price = this.candleSeries.coordinateToPrice(e.offsetY);
                     if (!time || price == null) return;
 
                     if (!this.overlayTempPoint) {
+                        // 第一个点
                         this.overlayTempPoint = { t: time, p: price };
                     } else {
+                        // 第二个点，完成趋势线绘制
                         this.trendLines.push({
                             t1: this.overlayTempPoint.t,
                             p1: this.overlayTempPoint.p,
@@ -335,16 +602,37 @@
                         this.renderOverlay();
                     }
                 },
-                onOverlayPointerMove(e) {
-                    if (!this.overlayTempPoint) return;
-
-                    const time = this.chart.timeScale().coordinateToTime(e.offsetX);
-                    const price = this.candleSeries.coordinateToPrice(e.offsetY);
-                    if (!time || price == null) return;
-
-                    this.renderOverlay();
+                /**
+                 * 处理矩形按下事件
+                 */
+                handleRectDown(e) {
+                    const t = this.chart.timeScale().coordinateToTime(e.offsetX);
+                    const p = this.candleSeries.coordinateToPrice(e.offsetY);
+                    if (!t || p == null) return;
+                    this.rectTemp = { t1: t, p1: p, t2: t, p2: p };
                 },
-                onOverlayPointerUp() { },
+                /**
+                 * 处理盈亏比按下事件
+                 */
+                handleRRDown(e) {
+                    const t = this.chart.timeScale().coordinateToTime(e.offsetX);
+                    const p = this.candleSeries.coordinateToPrice(e.offsetY);
+                    if (!t || p == null) return;
+
+                    if (!this.rrTemp) {
+                        // 第一步：入场价
+                        this.rrTemp = { t, entry: p, stop: null, target: null };
+                        this.showOperateMsg('已设置入场价，请点击设置止损价', true);
+                    } else if (!this.rrTemp.stop) {
+                        // 第二步：止损价
+                        this.rrTemp.stop = p;
+                        this.showOperateMsg('已设置止损价，请点击设置止盈价', true);
+                    } else {
+                        // 第三步：止盈价
+                        this.rrTemp.target = p;
+                        this.showOperateMsg('盈亏比工具绘制完成', true);
+                    }
+                },
                 /**
                  * 初始化十字光标监听（悬浮提示）
                  */
@@ -359,7 +647,7 @@
                             return;
                         }
 
-                        // 匹配当前K线数据（适配你的数据格式：time在第0位）
+                        // 匹配当前K线数据
                         const currentKline = this.currentKlineData.find(k => Math.floor(k[0] / 1000) === param.time);
                         if (!currentKline) {
                             this.currentKline = null;
@@ -411,7 +699,7 @@
                     this.isLoading = true;
                     this.operateMsg = '';
                     try {
-                        // 调用后台接口（后台自动处理：有数据返回，无数据则下载后返回）
+                        // 调用后台接口
                         const response = await fetch(`${this.apiBaseUrl}/get-kline`, {
                             method: 'POST',
                             headers: {
@@ -432,11 +720,12 @@
                         }
 
                         const result = await response.json();
-                        this.currentKlineData = result.data.kline_data;
+                        this.currentKlineData = result.data.kline_data || [];
                         this.currentStep = this.targetStep;
-                        this.maxStep = result.data.kline_data.length > 288 ? result.data.kline_data.length : 288;
+                        // 修正maxStep计算逻辑：取实际数据长度和288中的较小值
+                        this.maxStep = Math.min(this.currentKlineData.length, 288);
 
-                        // 转换数据格式并渲染图表（适配LightweightCharts）
+                        // 转换数据格式并渲染图表
                         const chartData = this.currentKlineData.map(item => ({
                             time: Math.floor(item[0] / 1000), // 转换为秒级时间戳
                             open: parseFloat(item[1]),
@@ -461,12 +750,20 @@
                  */
                 resetPlayback() {
                     this.currentStep = 0;
-                    this.targetStep = 1; // 重置输入框步数为1
+                    this.targetStep = 1;
                     this.currentKlineData = [];
                     this.operateMsg = '';
                     this.candleSeries.setData([]);
                     this.currentKline = null;
                     this.tooltipPos.opacity = 0;
+                    // 清空所有绘图元素
+                    this.trendLines = [];
+                    this.rects = [];
+                    this.rrTools = [];
+                    this.overlayTempPoint = null;
+                    this.rectTemp = null;
+                    this.rrTemp = null;
+                    this.renderOverlay();
                 },
 
                 /**
@@ -486,7 +783,7 @@
                 },
 
                 /**
-                 * 加载指定步数的K线（内部复用方法）
+                 * 加载指定步数的K线
                  */
                 async loadSpecifiedStep(targetStep) {
                     if (!this.targetDate || targetStep < 1 || targetStep > 288) {
@@ -517,10 +814,10 @@
                         }
 
                         const result = await response.json();
-                        this.currentKlineData = result.data.kline_data;
+                        this.currentKlineData = result.data.kline_data || [];
                         this.currentStep = targetStep;
-                        this.targetStep = targetStep; // 同步输入框步数
-                        this.maxStep = result.data.kline_data.length > 288 ? result.data.kline_data.length : 288;
+                        this.targetStep = targetStep;
+                        this.maxStep = Math.min(this.currentKlineData.length, 288);
 
                         // 转换数据格式并渲染图表
                         const chartData = this.currentKlineData.map(item => ({
