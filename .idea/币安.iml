@@ -4,5 +4,7 @@
     <content url="file://$MODULE_DIR$" />
     <orderEntry type="jdk" jdkName="币安" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
+    <orderEntry type="library" name="lightweight-charts" level="application" />
+    <orderEntry type="library" name="vue" level="application" />
   </component>
 </module>
