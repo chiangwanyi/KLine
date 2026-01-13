@@ -8,18 +8,18 @@ import plotly.graph_objs as go
 # 配置
 # =========================
 SYMBOL = "BTCUSDT"
-INTERVAL = "1h"
+INTERVAL = "5m"
 
 BINANCE_FUTURES_KLINES = "https://fapi.binance.com/fapi/v1/klines"
 
-NY_TZ = pytz.timezone("America/New_York")
+NY_TZ = pytz.timezone("Asia/Shanghai")
 UTC_TZ = pytz.utc
 
 # =========================
-# 输入：纽约时间日期范围
+# 输入：shanghai时间日期范围
 # =========================
-NY_START = "2025-12-25 00:00:00"
-NY_END   = "2025-12-25 23:59:59"
+NY_START = "2025-01-01 00:00:00"
+NY_END   = "2025-01-01 23:59:59"
 
 # =========================
 # 时间转换

@@ -12,14 +12,14 @@ INTERVAL = "5m"
 
 BINANCE_FUTURES_KLINES = "https://fapi.binance.com/fapi/v1/klines"
 
-NY_TZ = pytz.timezone("America/New_York")
+NY_TZ = pytz.timezone("Asia/Shanghai")
 UTC_TZ = pytz.utc
 
 # =========================
-# 输入：纽约时间日期范围
+# 输入：时间日期范围
 # =========================
-NY_START = "2025-12-25 00:00:00"
-NY_END   = "2025-12-25 23:59:59"
+NY_START = "2025-01-01 00:00:00"
+NY_END   = "2025-01-01 23:59:59"
 
 # =========================
 # 时间转换
@@ -41,7 +41,7 @@ params = {
     "interval": INTERVAL,
     "startTime": start_ts,
     "endTime": end_ts,
-    "limit": 300
+    "limit": 1000
 }
 
 resp = requests.get(BINANCE_FUTURES_KLINES, params=params)
