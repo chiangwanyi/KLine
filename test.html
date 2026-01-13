@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="zh">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Vue3 + SVG K线绘图 Demo</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            background: #0f0f0f;
+            color: #ccc;
+            font-family: system-ui, sans-serif;
+        }
+
+        #app {
+            display: flex;
+            height: 100vh;
+        }
+
+        .sidebar {
+            width: 160px;
+            background: #1a1a1a;
+            border-right: 1px solid #333;
+            padding: 10px;
+        }
+
+        .sidebar button {
+            width: 100%;
+            margin-bottom: 8px;
+            padding: 8px;
+            background: #222;
+            border: 1px solid #333;
+            color: #ccc;
+            cursor: pointer;
+        }
+
+        .sidebar button.active {
+            background: #2962ff;
+            border-color: #2962ff;
+        }
+
+        .chart-container {
+            flex: 1;
+            position: relative;
+        }
+
+        svg {
+            width: 100%;
+            height: 100%;
+            background: #000;
+            user-select: none;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="app">
+        <!-- 左侧工具栏 -->
+        <div class="sidebar">
+            <button v-for="t in tools" :key="t.key" :class="{ active: tool === t.key }" @click="tool = t.key">
+                {{ t.label }}
+            </button>
+        </div>
+
+        <!-- 右侧图表 -->
+        <div class="chart-container">
+            <svg ref="svg" @pointerdown="onPointerDown" @pointermove="onPointerMove" @pointerup="onPointerUp"
+                @pointerleave="onPointerUp">
+                <!-- K线层 -->
+                <g>
+                    <template v-for="(b, i) in bars" :key="i">
+                        <!-- 影线 -->
+                        <line :x1="xOf(i)" :x2="xOf(i)" :y1="yOf(b.high)" :y2="yOf(b.low)"
+                            :stroke="b.close >= b.open ? upColor : downColor" />
+                        <!-- 实体 -->
+                        <rect :x="xOf(i) - candleWidth / 2" :y="Math.min(yOf(b.open), yOf(b.close))"
+                            :width="candleWidth" :height="Math.max(1, Math.abs(yOf(b.close) - yOf(b.open)))"
+                            :fill="b.close >= b.open ? upColor : downColor" />
+                    </template>
+                </g>
+
+                <!-- 绘图层 -->
+                <g>
+                    <!-- 趋势线 -->
+                    <g v-for="(l, idx) in trendLines" :key="idx">
+                        <line :x1="l.p1.x" :y1="l.p1.y" :x2="l.p2.x" :y2="l.p2.y" stroke="#2962ff" stroke-width="2" />
+                        <circle v-for="(p, i) in [l.p1, l.p2]" :key="i" :cx="p.x" :cy="p.y" r="5" fill="#fff"
+                            stroke="#2962ff" @pointerdown.stop="startDrag(l, i, $event)" />
+                    </g>
+
+                    <!-- 矩形 -->
+                    <rect v-for="(r, idx) in rects" :key="idx" :x="r.x" :y="r.y" :width="r.w" :height="r.h"
+                        fill="rgba(41,98,255,0.15)" stroke="#2962ff" />
+
+                    <!-- 临时矩形 -->
+                    <rect v-if="tempRect" :x="tempRect.x" :y="tempRect.y" :width="tempRect.w" :height="tempRect.h"
+                        fill="rgba(41,98,255,0.15)" stroke="#2962ff" />
+                </g>
+            </svg>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, onMounted, watch } = Vue
+
+        createApp({
+            setup() {
+                /* ===== 工具定义 ===== */
+                const tools = [
+                    { key: 'view', label: '查看' },
+                    { key: 'trend', label: '趋势线' },
+                    { key: 'rect', label: '矩形' },
+                ]
+                const tool = ref('view')
+
+                /* ===== K线数据生成 ===== */
+                const bars = ref([])
+                let price = 100
+                for (let i = 0; i < 288; i++) {
+                    const o = price
+                    const h = o + Math.random() * 2
+                    const l = o - Math.random() * 2
+                    const c = l + Math.random() * (h - l)
+                    price = c
+                    bars.value.push({ open: o, high: h, low: l, close: c })
+                }
+
+                /* ===== SVG 相关 ===== */
+                const svg = ref(null)
+                const svgWidth = ref(0)
+                const svgHeight = ref(0)
+
+                // 图表内边距
+                const padding = {
+                    left: 20,
+                    right: 20,
+                    top: 20,
+                    bottom: 20
+                }
+
+                // K线颜色定义
+                const upColor = '#4CAF50'  // 涨（绿色）
+                const downColor = '#F44336' // 跌（红色）
+
+                // 计算价格极值（用于Y轴映射）
+                const priceMax = ref(Math.max(...bars.value.map(b => b.high)))
+                const priceMin = ref(Math.min(...bars.value.map(b => b.low)))
+
+                // 监听窗口大小变化，更新SVG尺寸
+                onMounted(() => {
+                    // 初始化SVG尺寸
+                    updateSvgSize()
+                    // 监听窗口resize
+                    window.addEventListener('resize', updateSvgSize)
+                })
+
+                // 更新SVG尺寸的方法
+                function updateSvgSize() {
+                    if (svg.value) {
+                        svgWidth.value = svg.value.clientWidth
+                        svgHeight.value = svg.value.clientHeight
+                    }
+                }
+
+                // X轴坐标计算（根据K线索引）
+                function xOf(i) {
+                    if (!svgWidth.value) return 0
+                    const step = (svgWidth.value - padding.left - padding.right) / bars.value.length
+                    return padding.left + i * step + step / 2
+                }
+
+                // Y轴坐标计算（根据价格）
+                function yOf(p) {
+                    if (!svgHeight.value || priceMax.value === priceMin.value) return 0
+                    return padding.top +
+                        (priceMax.value - p) / (priceMax.value - priceMin.value) *
+                        (svgHeight.value - padding.top - padding.bottom)
+                }
+
+                // K线实体宽度
+                const candleWidth = 6
+
+                /* ===== 趋势线功能 ===== */
+                const trendLines = ref([])
+                let tempTrend = null
+
+                /* ===== 矩形绘制功能 ===== */
+                const rects = ref([])
+                const tempRect = ref(null)
+                let rectStart = null
+
+                /* ===== 拖拽功能 ===== */
+                let dragging = null
+
+                // 开始拖拽趋势线端点
+                function startDrag(line, idx, e) {
+                    dragging = { line, idx }
+                    svg.value.setPointerCapture(e.pointerId)
+                }
+
+                // 鼠标按下事件
+                function onPointerDown(e) {
+                    // 查看模式不处理绘图
+                    if (tool.value === 'view') return
+
+                    // 绘制趋势线
+                    if (tool.value === 'trend') {
+                        if (!tempTrend) {
+                            tempTrend = { p1: { x: e.offsetX, y: e.offsetY } }
+                        } else {
+                            tempTrend.p2 = { x: e.offsetX, y: e.offsetY }
+                            trendLines.value.push({ ...tempTrend }) // 深拷贝避免引用问题
+                            tempTrend = null
+                        }
+                    }
+
+                    // 绘制矩形
+                    if (tool.value === 'rect') {
+                        rectStart = { x: e.offsetX, y: e.offsetY }
+                        tempRect.value = { x: rectStart.x, y: rectStart.y, w: 0, h: 0 }
+                    }
+                }
+
+                // 鼠标移动事件
+                function onPointerMove(e) {
+                    // 拖拽趋势线端点
+                    if (dragging) {
+                        const pointKey = dragging.idx === 0 ? 'p1' : 'p2'
+                        dragging.line[pointKey].x = e.offsetX
+                        dragging.line[pointKey].y = e.offsetY
+                    }
+
+                    // 绘制临时矩形
+                    if (tempRect.value && rectStart) {
+                        const x = Math.min(rectStart.x, e.offsetX)
+                        const y = Math.min(rectStart.y, e.offsetY)
+                        tempRect.value = {
+                            x,
+                            y,
+                            w: Math.abs(e.offsetX - rectStart.x),
+                            h: Math.abs(e.offsetY - rectStart.y)
+                        }
+                    }
+                }
+
+                // 鼠标抬起/离开事件
+                function onPointerUp() {
+                    dragging = null
+                    // 完成矩形绘制
+                    if (tempRect.value && tempRect.value.w > 0 && tempRect.value.h > 0) {
+                        rects.value.push({ ...tempRect.value }) // 深拷贝
+                        tempRect.value = null
+                        rectStart = null
+                    } else if (tempRect.value) {
+                        // 清除无效矩形
+                        tempRect.value = null
+                        rectStart = null
+                    }
+                }
+
+                return {
+                    tools,
+                    tool,
+                    bars,
+                    svg,
+                    xOf,
+                    yOf,
+                    candleWidth,
+                    upColor,
+                    downColor,
+                    trendLines,
+                    rects,
+                    tempRect,
+                    startDrag,
+                    onPointerDown,
+                    onPointerMove,
+                    onPointerUp
+                }
+            }
+        }).mount('#app')
+    </script>
+</body>
+
+</html>
