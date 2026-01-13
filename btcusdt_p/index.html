@@ -876,8 +876,7 @@
                         const result = await response.json();
                         this.currentKlineData = result.data.kline_data || [];
                         this.currentStep = this.targetStep;
-                        // 修正maxStep计算逻辑：取实际数据长度和288中的较小值
-                        this.maxStep = Math.min(this.currentKlineData.length, 288);
+                        this.maxStep = Math.max(this.currentKlineData.length, 288);
 
                         // 转换数据格式并渲染图表
                         const chartData = this.currentKlineData.map(item => ({
@@ -971,7 +970,7 @@
                         this.currentKlineData = result.data.kline_data || [];
                         this.currentStep = targetStep;
                         this.targetStep = targetStep;
-                        this.maxStep = Math.min(this.currentKlineData.length, 288);
+                        this.maxStep = Math.max(this.currentKlineData.length, 288);
 
                         // 转换数据格式并渲染图表
                         const chartData = this.currentKlineData.map(item => ({
