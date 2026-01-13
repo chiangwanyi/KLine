@@ -90,7 +90,7 @@
                 <div class="space-y-3">
                     <!-- 日期输入 -->
                     <div>
-                        <label class="text-textLight text-xs block mb-1">日期 (YYYYMMDD 或 YYYY-MM-DD)</label>
+                        <label class="text-textLight text-xs block mb-1">日期</label>
                         <input v-model="targetDate" type="date" class="input-field w-full">
                     </div>
                     <!-- 步数输入 + 加载按钮 -->
@@ -851,7 +851,7 @@
                         }
 
                         // 匹配当前K线数据
-                        const currentKline = this.currentKlineData.find(k => Math.floor(k[0] / 1000) === param.time);
+                        const currentKline = this.currentKlineData.find(k => Math.floor(k[0] / 1000 + 8*60*60) === param.time);
                         if (!currentKline) {
                             this.currentKline = null;
                             this.tooltipPos.opacity = 0;
@@ -929,7 +929,7 @@
 
                         // 转换数据格式并渲染图表
                         const chartData = this.currentKlineData.map(item => ({
-                            time: Math.floor(item[0] / 1000), // 转换为秒级时间戳
+                            time: Math.floor((item[0] / 1000) + 8*60*60), // 转换为秒级时间戳
                             open: parseFloat(item[1]),
                             high: parseFloat(item[2]),
                             low: parseFloat(item[3]),
