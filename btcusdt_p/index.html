@@ -234,6 +234,8 @@
                     rectTemp: null,        // 临时矩形数据
                     rrTools: [],           // 盈亏比工具数据
                     rrTemp: null,          // 临时盈亏比数据
+                    currentMouseX: 0,      // 当前鼠标X坐标
+                    currentMouseY: 0,      // 当前鼠标Y坐标
                     // API基础地址
                     apiBaseUrl: 'http://localhost:8880'
                 };
@@ -385,70 +387,59 @@
                     });
                 },
                 /**
-                 * 渲染盈亏比工具
+                 * 渲染盈亏比工具（重新设计的简化版本）
                  */
                 renderRRTools(svg) {
                     this.rrTools.forEach(rr => {
-                        if (!rr.entry || !rr.stop || !rr.target) return;
+                        // 绘制止损矩形（红色）
+                        this.drawRect(svg, {
+                            t1: rr.entryTime,
+                            p1: rr.entryPrice,
+                            t2: rr.stopTime,
+                            p2: rr.stopPrice
+                        }, '#ef4444', 0.3);
 
-                        // 计算坐标
-                        const entryX = this.chart.timeScale().timeToCoordinate(rr.t);
-                        const entryY = this.candleSeries.priceToCoordinate(rr.entry);
-                        const stopY = this.candleSeries.priceToCoordinate(rr.stop);
-                        const targetY = this.candleSeries.priceToCoordinate(rr.target);
+                        // 计算价格差值
+                        const priceDiff = Math.abs(rr.entryPrice - rr.stopPrice);
+                        const direction = rr.stopPrice > rr.entryPrice ? -1 : 1; // 1=向上，-1=向下
 
-                        if (entryX == null || entryY == null || stopY == null || targetY == null) return;
+                        // 绘制1倍目标矩形（蓝色）
+                        this.drawRect(svg, {
+                            t1: rr.entryTime,
+                            p1: rr.entryPrice + direction * priceDiff * 1,
+                            t2: rr.stopTime,
+                            p2: rr.entryPrice
+                        }, '#3b82f6', 0.2);
+
+                        // 绘制2倍目标矩形（绿色）
+                        this.drawRect(svg, {
+                            t1: rr.entryTime,
+                            p1: rr.entryPrice + direction * priceDiff * 2,
+                            t2: rr.stopTime,
+                            p2: rr.entryPrice + direction * priceDiff * 1
+                        }, '#22c55e', 0.2);
+
+                        // 绘制3倍目标矩形（黄色）
+                        this.drawRect(svg, {
+                            t1: rr.entryTime,
+                            p1: rr.entryPrice + direction * priceDiff * 3,
+                            t2: rr.stopTime,
+                            p2: rr.entryPrice + direction * priceDiff * 2
+                        }, '#eab308', 0.2);
 
                         // 绘制入场线
-                        const entryLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-                        entryLine.setAttribute('x1', entryX - 10);
-                        entryLine.setAttribute('y1', entryY);
-                        entryLine.setAttribute('x2', entryX + 10);
-                        entryLine.setAttribute('y2', entryY);
-                        entryLine.setAttribute('stroke', '#10b981');
-                        entryLine.setAttribute('stroke-width', '2');
-                        svg.appendChild(entryLine);
-
-                        // 绘制止损线
-                        const stopLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-                        stopLine.setAttribute('x1', entryX - 10);
-                        stopLine.setAttribute('y1', stopY);
-                        stopLine.setAttribute('x2', entryX + 10);
-                        stopLine.setAttribute('y2', stopY);
-                        stopLine.setAttribute('stroke', '#ef4444');
-                        stopLine.setAttribute('stroke-width', '2');
-                        svg.appendChild(stopLine);
-
-                        // 绘制止盈线
-                        const targetLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-                        targetLine.setAttribute('x1', entryX - 10);
-                        targetLine.setAttribute('y1', targetY);
-                        targetLine.setAttribute('x2', entryX + 10);
-                        targetLine.setAttribute('y2', targetY);
-                        targetLine.setAttribute('stroke', '#3b82f6');
-                        stopLine.setAttribute('stroke-width', '2');
-                        svg.appendChild(targetLine);
-
-                        // 绘制连线
-                        const line1 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-                        line1.setAttribute('x1', entryX);
-                        line1.setAttribute('y1', entryY);
-                        line1.setAttribute('x2', entryX);
-                        line1.setAttribute('y2', stopY);
-                        line1.setAttribute('stroke', '#ef4444');
-                        line1.setAttribute('stroke-width', '1');
-                        line1.setAttribute('stroke-dasharray', '5,5');
-                        svg.appendChild(line1);
-
-                        const line2 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-                        line2.setAttribute('x1', entryX);
-                        line2.setAttribute('y1', entryY);
-                        line2.setAttribute('x2', entryX);
-                        line2.setAttribute('y2', targetY);
-                        line2.setAttribute('stroke', '#3b82f6');
-                        line2.setAttribute('stroke-width', '1');
-                        line2.setAttribute('stroke-dasharray', '5,5');
-                        svg.appendChild(line2);
+                        const entryX = this.chart.timeScale().timeToCoordinate(rr.entryTime);
+                        const entryY = this.candleSeries.priceToCoordinate(rr.entryPrice);
+                        if (entryX != null && entryY != null) {
+                            const entryLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                            entryLine.setAttribute('x1', entryX - 10);
+                            entryLine.setAttribute('y1', entryY);
+                            entryLine.setAttribute('x2', entryX + 10);
+                            entryLine.setAttribute('y2', entryY);
+                            entryLine.setAttribute('stroke', '#ffffff');
+                            entryLine.setAttribute('stroke-width', '2');
+                            svg.appendChild(entryLine);
+                        }
                     });
                 },
                 /**
@@ -457,30 +448,36 @@
                 renderTempElements(svg) {
                     // 渲染临时趋势线
                     if (this.overlayTempPoint && this.activeTool === 'trendline') {
-                        const currentPoint = this.getMousePoint();
-                        if (currentPoint) {
-                            const x1 = this.chart.timeScale().timeToCoordinate(this.overlayTempPoint.t);
-                            const y1 = this.candleSeries.priceToCoordinate(this.overlayTempPoint.p);
-                            const x2 = currentPoint.x;
-                            const y2 = currentPoint.y;
+                        const time = this.chart.timeScale().coordinateToTime(this.currentMouseX);
+                        const price = this.candleSeries.coordinateToPrice(this.currentMouseY);
+                        if (!time || price == null) return;
 
-                            if (x1 != null && y1 != null && x2 != null && y2 != null) {
-                                const el = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-                                el.setAttribute('x1', x1);
-                                el.setAttribute('y1', y1);
-                                el.setAttribute('x2', x2);
-                                el.setAttribute('y2', y2);
-                                el.setAttribute('stroke', '#2962ff');
-                                el.setAttribute('stroke-width', '2');
-                                el.setAttribute('stroke-dasharray', '5,5');
-                                svg.appendChild(el);
-                            }
+                        const x1 = this.chart.timeScale().timeToCoordinate(this.overlayTempPoint.t);
+                        const y1 = this.candleSeries.priceToCoordinate(this.overlayTempPoint.p);
+                        const x2 = this.chart.timeScale().timeToCoordinate(time);
+                        const y2 = this.candleSeries.priceToCoordinate(price);
+
+                        if (x1 != null && y1 != null && x2 != null && y2 != null) {
+                            const el = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                            el.setAttribute('x1', x1);
+                            el.setAttribute('y1', y1);
+                            el.setAttribute('x2', x2);
+                            el.setAttribute('y2', y2);
+                            el.setAttribute('stroke', '#2962ff');
+                            el.setAttribute('stroke-width', '2');
+                            el.setAttribute('stroke-dasharray', '5,5');
+                            svg.appendChild(el);
                         }
                     }
 
                     // 渲染临时矩形
                     if (this.rectTemp && this.activeTool === 'rect') {
                         this.drawRect(svg, this.rectTemp, '#f59e0b', 0.1);
+                    }
+
+                    // 渲染临时盈亏比矩形
+                    if (this.rrTemp && this.activeTool === 'rr') {
+                        this.drawRect(svg, this.rrTemp, '#ef4444', 0.2);
                     }
                 },
                 /**
@@ -515,16 +512,12 @@
                     svg.appendChild(rectEl);
                 },
                 /**
-                 * 获取鼠标当前位置对应的坐标
-                 */
-                getMousePoint() {
-                    // 这个方法需要结合实际的鼠标位置，这里简化处理
-                    return null;
-                },
-                /**
                  * Overlay指针按下事件
                  */
                 onOverlayPointerDown(e) {
+                    this.currentMouseX = e.offsetX;
+                    this.currentMouseY = e.offsetY;
+
                     if (this.activeTool === 'trendline') {
                         this.handleTrendlineDown(e);
                     } else if (this.activeTool === 'rect') {
@@ -542,9 +535,6 @@
                     this.currentMouseY = e.offsetY;
 
                     if (this.activeTool === 'trendline' && this.overlayTempPoint) {
-                        const time = this.chart.timeScale().coordinateToTime(e.offsetX);
-                        const price = this.candleSeries.coordinateToPrice(e.offsetY);
-                        if (!time || price == null) return;
                         this.renderOverlay();
                     } else if (this.activeTool === 'rect' && this.rectTemp) {
                         const t = this.chart.timeScale().coordinateToTime(e.offsetX);
@@ -554,8 +544,11 @@
                         this.rectTemp.p2 = p;
                         this.renderOverlay();
                     } else if (this.activeTool === 'rr' && this.rrTemp) {
-                        const price = this.candleSeries.coordinateToPrice(e.offsetY);
-                        if (price == null) return;
+                        const t = this.chart.timeScale().coordinateToTime(e.offsetX);
+                        const p = this.candleSeries.coordinateToPrice(e.offsetY);
+                        if (!t || p == null) return;
+                        this.rrTemp.stopTime = t;
+                        this.rrTemp.stopPrice = p;
                         this.renderOverlay();
                     }
                 },
@@ -571,12 +564,14 @@
                         this.rectTemp = null;
                         this.renderOverlay();
                     } else if (this.activeTool === 'rr' && this.rrTemp) {
-                        // 如果已经设置了止盈，则完成绘制
-                        if (this.rrTemp.target) {
+                        // 确保盈亏比矩形有实际大小
+                        if (this.rrTemp.entryTime !== this.rrTemp.stopTime && 
+                            Math.abs(this.rrTemp.entryPrice - this.rrTemp.stopPrice) > 0) {
                             this.rrTools.push({ ...this.rrTemp });
-                            this.rrTemp = null;
-                            this.renderOverlay();
+                            this.showOperateMsg('盈亏比工具绘制完成，已自动生成1/2/3倍目标位', true);
                         }
+                        this.rrTemp = null;
+                        this.renderOverlay();
                     }
                 },
                 /**
@@ -612,26 +607,21 @@
                     this.rectTemp = { t1: t, p1: p, t2: t, p2: p };
                 },
                 /**
-                 * 处理盈亏比按下事件
+                 * 处理盈亏比按下事件（重新设计的简化版本）
                  */
                 handleRRDown(e) {
                     const t = this.chart.timeScale().coordinateToTime(e.offsetX);
                     const p = this.candleSeries.coordinateToPrice(e.offsetY);
                     if (!t || p == null) return;
 
-                    if (!this.rrTemp) {
-                        // 第一步：入场价
-                        this.rrTemp = { t, entry: p, stop: null, target: null };
-                        this.showOperateMsg('已设置入场价，请点击设置止损价', true);
-                    } else if (!this.rrTemp.stop) {
-                        // 第二步：止损价
-                        this.rrTemp.stop = p;
-                        this.showOperateMsg('已设置止损价，请点击设置止盈价', true);
-                    } else {
-                        // 第三步：止盈价
-                        this.rrTemp.target = p;
-                        this.showOperateMsg('盈亏比工具绘制完成', true);
-                    }
+                    // 初始化盈亏比临时数据（入场点）
+                    this.rrTemp = {
+                        entryTime: t,
+                        entryPrice: p,
+                        stopTime: t,
+                        stopPrice: p
+                    };
+                    this.showOperateMsg('已设置入场点，请拖拽至止损位', true);
                 },
                 /**
                  * 初始化十字光标监听（悬浮提示）
