@@ -211,7 +211,7 @@
                 
                 // 业务数据
                 targetDate: '',        // 统一的目标日期
-                targetStep: 1,         // 手动输入的目标步数
+                targetStep: 108,         // 手动输入的目标步数
                 currentStep: 0,        // 当前回放步数
                 maxStep: 288,          // 最大步数
                 isLoading: false,      // 加载状态
@@ -370,7 +370,7 @@
                     const result = await response.json();
                     this.currentKlineData = result.data.kline_data;
                     this.currentStep = this.targetStep;
-                    this.maxStep = result.data.kline_data.length;
+                    this.maxStep = result.data.kline_data.length > 288 ? result.data.kline_data.length : 288;
                     
                     // 转换数据格式并渲染图表（适配LightweightCharts）
                     const chartData = this.currentKlineData.map(item => ({
@@ -456,7 +456,7 @@
                     this.currentKlineData = result.data.kline_data;
                     this.currentStep = targetStep;
                     this.targetStep = targetStep; // 同步输入框步数
-                    this.maxStep = result.data.kline_data.length;
+                    this.maxStep = result.data.kline_data.length > 288 ? result.data.kline_data.length : 288;
                     
                     // 转换数据格式并渲染图表
                     const chartData = this.currentKlineData.map(item => ({
