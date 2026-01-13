@@ -360,6 +360,9 @@
                  */
                 renderTrendLines(svg) {
                     this.trendLines.forEach(line => {
+                        // 增加严格的空值检查
+                        if (!line || !line.t1 || !line.t2 || !line.p1 || !line.p2) return;
+                        
                         const x1 = this.chart.timeScale().timeToCoordinate(line.t1);
                         const x2 = this.chart.timeScale().timeToCoordinate(line.t2);
                         const y1 = this.candleSeries.priceToCoordinate(line.p1);
@@ -391,6 +394,9 @@
                  */
                 renderRRTools(svg) {
                     this.rrTools.forEach(rr => {
+                        // 增加严格的空值检查
+                        if (!rr || !rr.entryTime || !rr.entryPrice || !rr.stopTime || !rr.stopPrice) return;
+                        
                         // 绘制止损矩形（红色）
                         this.drawRect(svg, {
                             t1: rr.entryTime,
@@ -448,6 +454,9 @@
                 renderTempElements(svg) {
                     // 渲染临时趋势线
                     if (this.overlayTempPoint && this.activeTool === 'trendline') {
+                        // 增加空值检查
+                        if (!this.overlayTempPoint.t || !this.overlayTempPoint.p) return;
+                        
                         const time = this.chart.timeScale().coordinateToTime(this.currentMouseX);
                         const price = this.candleSeries.coordinateToPrice(this.currentMouseY);
                         if (!time || price == null) return;
@@ -477,18 +486,35 @@
 
                     // 渲染临时盈亏比矩形
                     if (this.rrTemp && this.activeTool === 'rr') {
-                        this.drawRect(svg, this.rrTemp, '#ef4444', 0.2);
+                        // 增加空值检查
+                        if (this.rrTemp && this.rrTemp.entryTime && this.rrTemp.entryPrice) {
+                            this.drawRect(svg, this.rrTemp, '#ef4444', 0.2);
+                        }
                     }
                 },
                 /**
-                 * 绘制矩形
+                 * 绘制矩形（修复核心报错）
                  */
                 drawRect(svg, rect, color, opacity) {
-                    const x1 = this.chart.timeScale().timeToCoordinate(rect.t1);
-                    const x2 = this.chart.timeScale().timeToCoordinate(rect.t2);
-                    const y1 = this.candleSeries.priceToCoordinate(rect.p1);
-                    const y2 = this.candleSeries.priceToCoordinate(rect.p2);
+                    // 增加严格的空值检查，防止传入无效数据
+                    if (!svg || !rect || rect.t1 == null || rect.t2 == null || rect.p1 == null || rect.p2 == null) {
+                        return;
+                    }
+                    
+                    // 先检查时间值是否有效
+                    let x1, x2, y1, y2;
+                    try {
+                        x1 = this.chart.timeScale().timeToCoordinate(rect.t1);
+                        x2 = this.chart.timeScale().timeToCoordinate(rect.t2);
+                        y1 = this.candleSeries.priceToCoordinate(rect.p1);
+                        y2 = this.candleSeries.priceToCoordinate(rect.p2);
+                    } catch (e) {
+                        // 捕获timeToCoordinate的异常，防止控制台报错
+                        console.debug('绘制矩形时坐标转换失败:', e);
+                        return;
+                    }
 
+                    // 检查转换后的坐标是否有效
                     if (x1 == null || x2 == null || y1 == null || y2 == null) return;
 
                     // 计算矩形的实际坐标（确保x1 <= x2，y1 <= y2）
@@ -496,6 +522,9 @@
                     const ry = Math.min(y1, y2);
                     const width = Math.abs(x2 - x1);
                     const height = Math.abs(y2 - y1);
+
+                    // 只绘制有实际大小的矩形
+                    if (width <= 0 || height <= 0) return;
 
                     // 创建矩形元素
                     const rectEl = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
@@ -544,6 +573,9 @@
                         this.rectTemp.p2 = p;
                         this.renderOverlay();
                     } else if (this.activeTool === 'rr' && this.rrTemp) {
+                        // 增加空值检查
+                        if (!this.rrTemp) return;
+                        
                         const t = this.chart.timeScale().coordinateToTime(e.offsetX);
                         const p = this.candleSeries.coordinateToPrice(e.offsetY);
                         if (!t || p == null) return;
@@ -564,6 +596,12 @@
                         this.rectTemp = null;
                         this.renderOverlay();
                     } else if (this.activeTool === 'rr' && this.rrTemp) {
+                        // 增加空值检查
+                        if (!this.rrTemp || !this.rrTemp.entryTime || !this.rrTemp.entryPrice) {
+                            this.rrTemp = null;
+                            return;
+                        }
+                        
                         // 确保盈亏比矩形有实际大小
                         if (this.rrTemp.entryTime !== this.rrTemp.stopTime && 
                             Math.abs(this.rrTemp.entryPrice - this.rrTemp.stopPrice) > 0) {
@@ -870,5 +908,4 @@
         }).mount('#app');
     </script>
 </body>
-
 </html>
