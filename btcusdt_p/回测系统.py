@@ -16,7 +16,7 @@ from fastapi.responses import HTMLResponse
 # =========================
 SYMBOL = "BTCUSDT"
 INTERVAL = "5m"
-SAVE_BASE_PATH = "./btcusdt_p/binance"
+SAVE_BASE_PATH = "./binance"
 BINANCE_FUTURES_KLINES = "https://fapi.binance.com/fapi/v1/klines"
 NY_TZ = pytz.timezone("Asia/Shanghai")
 UTC_TZ = pytz.utc
@@ -25,7 +25,6 @@ app = FastAPI()
 
 # 配置 CORS 中间件（核心修复部分）
 origins = [
-    "http://localhost:63343",  # 你的前端域名，必须指定具体值，不能用 *
     "http://localhost:8880",  # 新增：添加当前服务地址，避免前端访问跨域
     # 如果有其他环境（如生产环境），可以在这里添加，例如：
     # "https://your-production-domain.com",
