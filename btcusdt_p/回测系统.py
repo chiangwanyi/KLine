@@ -7,6 +7,9 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, field_validator
 from typing import Optional
+# 新增导入：用于提供静态文件服务和返回HTML响应
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import HTMLResponse
 
 # =========================
 # 全局配置
@@ -23,6 +26,7 @@ app = FastAPI()
 # 配置 CORS 中间件（核心修复部分）
 origins = [
     "http://localhost:63343",  # 你的前端域名，必须指定具体值，不能用 *
+    "http://localhost:8880",  # 新增：添加当前服务地址，避免前端访问跨域
     # 如果有其他环境（如生产环境），可以在这里添加，例如：
     # "https://your-production-domain.com",
 ]
@@ -31,9 +35,35 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,  # 允许的源列表（关键：不能是 *）
     allow_credentials=True,  # 允许携带凭证（Cookie/认证信息），必须设为 True
-    allow_methods=["*"],     # 允许所有请求方法（GET/POST/OPTIONS 等）
-    allow_headers=["*"],     # 允许所有请求头
+    allow_methods=["*"],  # 允许所有请求方法（GET/POST/OPTIONS 等）
+    allow_headers=["*"],  # 允许所有请求头
 )
+
+# 新增：挂载静态文件目录（当前目录）
+# 这样可以访问同级目录下的所有静态文件（HTML/CSS/JS等）
+app.mount("/static", StaticFiles(directory="."), name="static")
+
+
+# =========================
+# 新增：根路径路由，返回index.html内容
+# =========================
+@app.get("/", response_class=HTMLResponse, summary="返回首页index.html")
+async def serve_index():
+    """根路径返回同级目录下的index.html文件内容"""
+    # 获取index.html的绝对路径
+    html_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "index.html")
+
+    # 检查文件是否存在
+    if not os.path.exists(html_file_path):
+        raise HTTPException(status_code=404, detail="index.html文件不存在，请确保该文件在当前脚本的同级目录下")
+
+    # 读取并返回HTML内容
+    try:
+        with open(html_file_path, "r", encoding="utf-8") as f:
+            html_content = f.read()
+        return HTMLResponse(content=html_content, status_code=200)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"读取index.html文件失败：{str(e)}")
 
 
 # =========================
@@ -55,9 +85,10 @@ class DownloadKlineRequest(BaseModel):
         except ValueError:
             raise ValueError("日期格式错误，请使用YYYYMMDD（如20250201）或YYYY-MM-DD（如2025-02-01）")
 
+
 class GetKlineRequest(BaseModel):
     date: str  # 格式：YYYYMMDD 或 YYYY-MM-DD
-    n: int     # 1~288（一天24小时，每5分钟一根，24*60/5=288）
+    n: int  # 1~288（一天24小时，每5分钟一根，24*60/5=288）
 
     @field_validator("date")
     def validate_date_format(cls, v):
@@ -75,6 +106,7 @@ class GetKlineRequest(BaseModel):
         if not (1 <= v <= 288):
             raise ValueError("n必须是1~288之间的整数（一天最多288根5分钟K线）")
         return v
+
 
 # =========================
 # 核心函数
@@ -115,6 +147,7 @@ def get_kline_data(date_str: str) -> list:
     except requests.exceptions.RequestException as e:
         raise HTTPException(status_code=500, detail=f"获取K线数据失败：{str(e)}")
 
+
 def save_kline_data(date_str: str, kline_data: list) -> str:
     """
     保存K线数据到本地指定路径
@@ -136,6 +169,7 @@ def save_kline_data(date_str: str, kline_data: list) -> str:
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"保存文件失败：{str(e)}")
 
+
 def read_kline_data(date_str: str) -> list:
     """
     从本地读取指定日期的K线数据
@@ -153,6 +187,7 @@ def read_kline_data(date_str: str) -> list:
             return json.load(f)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"读取文件失败：{str(e)}")
+
 
 # =========================
 # Web接口
@@ -180,6 +215,7 @@ def download_kline(request: DownloadKlineRequest):
             "kline_count": len(kline_data)
         }
     }
+
 
 @app.post("/get-kline", summary="获取指定日期的前n根5分钟K线数据")
 def get_kline(request: GetKlineRequest):
@@ -215,11 +251,13 @@ def get_kline(request: GetKlineRequest):
         }
     }
 
+
 # =========================
 # 启动服务（本地测试用）
 # =========================
 if __name__ == "__main__":
     import uvicorn
+
     # 修复核心问题：模块名改为__main__（当前文件），而不是错误的"回测系统"
     # 同时绑定0.0.0.0，允许外部访问（包括前端页面）
     uvicorn.run(
